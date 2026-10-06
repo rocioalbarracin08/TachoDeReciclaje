@@ -8,9 +8,9 @@ import productos
 import reciclajes
 import usuarios
 
-HOST = "0.0.0.0"
-PUERTO = 5000
 CLAVE_ADMIN = os.environ.get("CLAVE_ADMIN", "")
+HOST = os.environ.get("HOST", "0.0.0.0")
+PUERTO = int(os.environ.get("PUERTO", "5000"))
 
 app = Flask(__name__)
 
@@ -19,15 +19,20 @@ def respuesta_error(codigo_error, estado_http):
     return jsonify({"error": codigo_error}), estado_http
 
 
-def respuesta_reciclaje(usuario, producto, puntos):
+def respuesta_reciclaje(usuario, producto, puntos_sumados):
     if productos.esta_aprobado(producto):
-        mensaje = f"Felicitaciones {usuario['nombre']} sumaste {puntos} puntos"
+        mensaje = f"Felicitaciones {usuario['nombre']} sumaste {puntos_sumados} puntos"
         estado_http = HTTPStatus.OK
     else:
         mensaje = f"Gracias {usuario['nombre']}! Producto en revision"
         estado_http = HTTPStatus.ACCEPTED
 
-    cuerpo = {"nombre": usuario["nombre"], "puntos": puntos, "mensaje": mensaje}
+    cuerpo = {
+        "nombre": usuario["nombre"],
+        "puntos_sumados": puntos_sumados,
+        "puntos": usuario["puntos"],
+        "mensaje": mensaje,
+    }
     return jsonify(cuerpo), estado_http
 
 
@@ -36,7 +41,7 @@ def es_administrador():
     return bool(CLAVE_ADMIN) and clave_recibida == CLAVE_ADMIN
 
 
-@app.get("/api/tacho/usuario")
+@app.get("/usuario")
 def consultar_usuario():
     dni = request.args.get("dni", "")
     if not dni.isdigit():
@@ -54,7 +59,25 @@ def consultar_usuario():
     return jsonify(cuerpo), HTTPStatus.OK
 
 
-@app.post("/api/tacho/reciclar")
+@app.get("/producto")
+def consultar_producto():
+    codigo_barras = request.args.get("codigo_barras", "")
+    if not codigo_barras.isdigit():
+        return respuesta_error("faltan_datos", HTTPStatus.BAD_REQUEST)
+
+    producto = productos.buscar_por_codigo(codigo_barras)
+    if producto is None:
+        return respuesta_error("producto_no_registrado", HTTPStatus.NOT_FOUND)
+
+    cuerpo = {
+        "nombre": producto["nombre"],
+        "reciclable": productos.esta_aprobado(producto),
+        "puntos": producto["puntos"],
+    }
+    return jsonify(cuerpo), HTTPStatus.OK
+
+
+@app.post("/reciclar")
 def reciclar():
     datos = request.get_json(silent=True) or {}
     dni = str(datos.get("dni", ""))
@@ -68,11 +91,11 @@ def reciclar():
         return respuesta_error("usuario_no_registrado", HTTPStatus.NOT_FOUND)
 
     producto = productos.obtener_o_registrar(codigo_barras)
-    puntos = reciclajes.registrar(usuario, producto)
-    return respuesta_reciclaje(usuario, producto, puntos)
+    puntos_sumados, usuario_actualizado = reciclajes.registrar(usuario, producto)
+    return respuesta_reciclaje(usuario_actualizado, producto, puntos_sumados)
 
 
-@app.post("/api/tacho/admin/aprobar-producto")
+@app.post("/admin/aprobar-producto")
 def aprobar_producto():
     if not es_administrador():
         return respuesta_error("no_autorizado", HTTPStatus.UNAUTHORIZED)
