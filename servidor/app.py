@@ -58,6 +58,27 @@ def consultar_usuario():
     }
     return jsonify(cuerpo), HTTPStatus.OK
 
+@app.post("/usuario")
+def registrar_usuario():
+    datos = request.get_json(silent=True) or {}
+    dni = str(datos.get("dni", ""))
+    nombre = str(datos.get("nombre", "")).strip()
+    apellido = str(datos.get("apellido", "")).strip()
+
+    if not (dni.isdigit() and nombre and apellido):
+        return respuesta_error("faltan_datos", HTTPStatus.BAD_REQUEST)
+
+    if usuarios.buscar_por_dni(dni) is not None:
+        return respuesta_error("usuario_ya_registrado", HTTPStatus.CONFLICT)
+
+    usuario = usuarios.crear(dni, nombre, apellido)
+    cuerpo = {
+        "nombre": usuario["nombre"],
+        "apellido": usuario["apellido"],
+        "puntos": usuario["puntos"],
+    }
+    return jsonify(cuerpo), HTTPStatus.CREATED
+
 
 @app.get("/producto")
 def consultar_producto():

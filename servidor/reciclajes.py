@@ -42,7 +42,7 @@ def _buscar_pendientes(producto: dict) -> list:
             "perPage": MAXIMO_POR_PAGINA,
         },
         headers=pocketbase.encabezados_admin(),
-        timeout=pocketbase.TIEMPO_MAXIMO_SEG,
+        timeout=5,
     )
     respuesta.raise_for_status()
     return respuesta.json()["items"]
@@ -54,7 +54,7 @@ def _acreditar(reciclaje: dict, puntos: int):
         f"{URL_RECICLAJES}/{reciclaje['id']}",
         json=datos,
         headers=pocketbase.encabezados_admin(),
-        timeout=pocketbase.TIEMPO_MAXIMO_SEG,
+        timeout=5,
     )
     respuesta.raise_for_status()
     usuarios.sumar_puntos(reciclaje["id_usuario"], puntos)
@@ -71,6 +71,6 @@ def _guardar(usuario: dict, producto: dict, puntos: int, acreditado: bool):
         URL_RECICLAJES,
         json=datos,
         headers=pocketbase.encabezados_admin(),
-        timeout=pocketbase.TIEMPO_MAXIMO_SEG,
+        timeout=5,
     )
     respuesta.raise_for_status()

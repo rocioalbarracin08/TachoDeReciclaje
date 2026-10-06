@@ -3,9 +3,7 @@ from typing import Optional
 import requests
 
 URL_API = "https://world.openfoodfacts.org/api/v2/product"
-USER_AGENT = "TachoReciclaje/1.0 (proyecto escolar)"
-TIEMPO_MAXIMO_SEG = 5
-
+USER_AGENT = "TachoReciclaje (proyecto educativo)"
 
 def buscar_nombre_producto(codigo_barras: str) -> Optional[str]:
     try:
@@ -13,7 +11,7 @@ def buscar_nombre_producto(codigo_barras: str) -> Optional[str]:
             f"{URL_API}/{codigo_barras}",
             params={"fields": "product_name"},
             headers={"User-Agent": USER_AGENT},
-            timeout=TIEMPO_MAXIMO_SEG,
+            timeout= 5,
         )
         datos = respuesta.json()
     except (requests.RequestException, ValueError):
