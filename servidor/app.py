@@ -4,9 +4,7 @@ from http import HTTPStatus
 import requests
 from flask import Flask, jsonify, request
 
-import productos
-import reciclajes
-import usuarios
+import productos, reciclajes, usuarios
 
 CLAVE_ADMIN = os.environ.get("CLAVE_ADMIN", "")
 HOST = os.environ.get("HOST", "0.0.0.0")
