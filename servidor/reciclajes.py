@@ -4,41 +4,44 @@ import pocketbase
 import productos
 import usuarios
 
-URL_RECICLAJES = f"{pocketbase.URL_POCKETBASE}/api/collections/reciclajes/records"
+URL_REGISTRO_TEMPORAL = f"{pocketbase.URL_POCKETBASE}/api/collections/registro_temporal_asignar_puntos/records"
 MAXIMO_POR_PAGINA = 500
 
 SIN_PUNTOS = 0
 
-
 def registrar(usuario: dict, producto: dict):
     if productos.esta_aprobado(producto):
         puntos = producto["puntos"]
-        _guardar(usuario, producto, puntos, acreditado=True)
+        # si el producto ya existe y vale puntos, se los sumo directo sin pasar por la tabla temporal
         usuario_actualizado = usuarios.sumar_puntos(usuario["id"], puntos)
         return puntos, usuario_actualizado
 
-    _guardar(usuario, producto, SIN_PUNTOS, acreditado=False)
+    # si no existe o vale 0, recien ahi atrapo el momento y lo mando a la tabla temporal
+    _guardar_en_temporal(usuario, producto)
     return SIN_PUNTOS, usuario
-
 
 def acreditar_pendientes(producto: dict) -> int:
     total_acreditados = 0
     pendientes = _buscar_pendientes(producto)
 
     while pendientes:
-        for reciclaje in pendientes:
-            _acreditar(reciclaje, producto["puntos"])
+        for registro in pendientes:
+            # le asigno al usuario los puntos correspondientes
+            usuarios.sumar_puntos(registro["id_usuario"], producto["puntos"])
+            # como ya se le asignaron los puntos, borro el registro de la tabla temporal
+            _borrar_registro_temporal(registro["id"])
+            
         total_acreditados += len(pendientes)
         pendientes = _buscar_pendientes(producto)
 
     return total_acreditados
 
-
 def _buscar_pendientes(producto: dict) -> list:
     respuesta = requests.get(
-        URL_RECICLAJES,
+        URL_REGISTRO_TEMPORAL,
+        # quite el filtro de acreditado porque la tabla entera son solo los pendientes
         params={
-            "filter": f'id_producto="{producto["id"]}" && acreditado=false',
+            "filter": f'id_producto="{producto["id"]}"',
             "perPage": MAXIMO_POR_PAGINA,
         },
         headers=pocketbase.encabezados_admin(),
@@ -47,28 +50,23 @@ def _buscar_pendientes(producto: dict) -> list:
     respuesta.raise_for_status()
     return respuesta.json()["items"]
 
-
-def _acreditar(reciclaje: dict, puntos: int):
-    datos = {"puntos_otorgados": puntos, "acreditado": True}
-    respuesta = requests.patch(
-        f"{URL_RECICLAJES}/{reciclaje['id']}",
-        json=datos,
+def _borrar_registro_temporal(id_registro: str):
+    # agregue esta funcion para poder eliminar el registro una vez que sume los puntos
+    respuesta = requests.delete(
+        f"{URL_REGISTRO_TEMPORAL}/{id_registro}",
         headers=pocketbase.encabezados_admin(),
         timeout=5,
     )
     respuesta.raise_for_status()
-    usuarios.sumar_puntos(reciclaje["id_usuario"], puntos)
 
-
-def _guardar(usuario: dict, producto: dict, puntos: int, acreditado: bool):
+def _guardar_en_temporal(usuario: dict, producto: dict):
+    # quite los campos puntos_otorgados y acreditado para que respete mi esquema
     datos = {
         "id_usuario": usuario["id"],
-        "id_producto": producto["id"],
-        "puntos_otorgados": puntos,
-        "acreditado": acreditado,
+        "id_producto": producto["id"]
     }
     respuesta = requests.post(
-        URL_RECICLAJES,
+        URL_REGISTRO_TEMPORAL,
         json=datos,
         headers=pocketbase.encabezados_admin(),
         timeout=5,
