@@ -136,9 +136,41 @@ def aprobar_producto():
     return jsonify({"usuarios_acreditados": usuarios_acreditados}), HTTPStatus.OK
 
 
+
 @app.errorhandler(requests.RequestException)
 def manejar_error_de_base_de_datos(_error):
     return respuesta_error("error_interno", HTTPStatus.INTERNAL_SERVER_ERROR)
+
+@app.patch("/sumar_puntos")
+def sumar_puntos():
+    datos = request.get_json(silent=True) or {}
+    
+    dni = str(datos.get("dni") or request.args.get("dni", ""))
+    codigo_de_barras = str(datos.get("codigo_de_barras") or request.args.get("codigo_de_barras", ""))
+
+    if not (dni.isdigit() and codigo_de_barras.isdigit()):
+        return respuesta_error("faltan_datos", HTTPStatus.BAD_REQUEST)
+    
+    usuario = usuarios.buscar_por_dni(dni)
+    if usuario is None:
+        return respuesta_error("usuario_no_registrado", HTTPStatus.NOT_FOUND)
+
+    producto = productos.buscar_por_codigo(codigo_de_barras)
+    if producto is None:
+        return respuesta_error("producto_no_registrado", HTTPStatus.NOT_FOUND)
+
+    puntos_producto = producto.get("puntos", 0)
+    if puntos_producto <= 0:
+        return respuesta_error("producto_sin_puntos", HTTPStatus.UNPROCESSABLE_ENTITY)
+
+    usuario_actualizado = usuarios.sumar_puntos(usuario["id"], puntos_producto)
+
+    return jsonify({
+        "nombre": usuario_actualizado["nombre"],
+        "puntos_sumados": puntos_producto,
+        "nueva cantidad de puntos": usuario_actualizado["puntos"],
+        "mensaje": f"Se sumaron {puntos_producto} puntos a {usuario_actualizado['nombre']}"
+    }), HTTPStatus.OK
 
 
 if __name__ == "__main__":
