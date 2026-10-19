@@ -2,10 +2,10 @@
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 
-const char* WIFI_SSID = "PEINE-2";
-const char* WIFI_PASS = "etecPeine2";
+const char* WIFI_SSID = "Telecentro-3b3e";
+const char* WIFI_PASS = "R2NKJZMLDNKJ";
 
-const String URL_SERVIDOR = "http://10.56.2.7:5000";
+const String URL_SERVIDOR = "http://192.168.0.32:5000";
 
 void conectarWifi() {
   WiFi.begin(WIFI_SSID, WIFI_PASS);
@@ -76,14 +76,16 @@ void consultarProducto(const String& codigoBarras) {
 
 void setup() {
   Serial.begin(115200);
+  delay(1000); 
+  Serial.println("\nIniciando ESP32");
+  
   conectarWifi();
   
   Serial.println("\n--- Probando Usuario ---");
   consultarUsuario("48594871");
 
   Serial.println("\n--- Probando Producto ---");
-  // Usamos el código de la Smartwater Sin Gas (591 ml) para probar
-  consultarProducto("fsf"); 
+  consultarProducto("7790895645778"); // "fsf" no es numérico -> devuelve HTTP 400 Bad Request
 }
 
 void loop() {}

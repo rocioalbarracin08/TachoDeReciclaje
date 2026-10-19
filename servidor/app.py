@@ -142,4 +142,4 @@ def manejar_error_de_base_de_datos(_error):
 
 
 if __name__ == "__main__":
-    app.run(host=HOST, port=PUERTO)
+    app.run(host=HOST, port=PUERTO, debug=True)
