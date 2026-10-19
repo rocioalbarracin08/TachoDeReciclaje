@@ -39,7 +39,7 @@ def es_administrador():
     return bool(CLAVE_ADMIN) and clave_recibida == CLAVE_ADMIN
 
 
-@app.get("/usuario")
+@app.get("/usuario") # listo
 def consultar_usuario():
     dni = request.args.get("dni", "")
     if not dni.isdigit():
@@ -56,7 +56,7 @@ def consultar_usuario():
     }
     return jsonify(cuerpo), HTTPStatus.OK
 
-@app.post("/usuario")
+@app.post("/usuario") # 2do release para el pr0blema de sì el usuario no estaba registrado
 def registrar_usuario():
     datos = request.get_json(silent=True) or {}
     dni = str(datos.get("dni", ""))
@@ -77,14 +77,13 @@ def registrar_usuario():
     }
     return jsonify(cuerpo), HTTPStatus.CREATED
 
-
-@app.get("/producto")
+@app.get("/producto") # listo
 def consultar_producto():
-    codigo_barras = request.args.get("codigo_barras", "")
-    if not codigo_barras.isdigit():
+    codigo_de_barras = request.args.get("codigo_de_barras", "")
+    if not codigo_de_barras.isdigit():
         return respuesta_error("faltan_datos", HTTPStatus.BAD_REQUEST)
 
-    producto = productos.buscar_por_codigo(codigo_barras)
+    producto = productos.buscar_por_codigo(codigo_de_barras)
     if producto is None:
         return respuesta_error("producto_no_registrado", HTTPStatus.NOT_FOUND)
 
@@ -95,24 +94,22 @@ def consultar_producto():
     }
     return jsonify(cuerpo), HTTPStatus.OK
 
-
 @app.post("/reciclar")
 def reciclar():
     datos = request.get_json(silent=True) or {}
     dni = str(datos.get("dni", ""))
-    codigo_barras = str(datos.get("codigo_barras", ""))
+    codigo_de_barras = str(datos.get("codigo_de_barras", ""))
 
-    if not (dni.isdigit() and codigo_barras.isdigit()):
+    if not (dni.isdigit() and codigo_de_barras.isdigit()):
         return respuesta_error("faltan_datos", HTTPStatus.BAD_REQUEST)
 
     usuario = usuarios.buscar_por_dni(dni)
     if usuario is None:
         return respuesta_error("usuario_no_registrado", HTTPStatus.NOT_FOUND)
 
-    producto = productos.obtener_o_registrar(codigo_barras)
+    producto = productos.obtener_o_registrar(codigo_de_barras)
     puntos_sumados, usuario_actualizado = reciclajes.registrar(usuario, producto)
     return respuesta_reciclaje(usuario_actualizado, producto, puntos_sumados)
-
 
 @app.post("/admin/aprobar-producto")
 def aprobar_producto():
@@ -120,14 +117,14 @@ def aprobar_producto():
         return respuesta_error("no_autorizado", HTTPStatus.UNAUTHORIZED)
 
     datos = request.get_json(silent=True) or {}
-    codigo_barras = str(datos.get("codigo_barras", ""))
+    codigo_de_barras = str(datos.get("codigo_de_barras", ""))
     puntos = datos.get("puntos")
 
     puntos_validos = isinstance(puntos, int) and puntos > 0
-    if not (codigo_barras.isdigit() and puntos_validos):
+    if not (codigo_de_barras.isdigit() and puntos_validos):
         return respuesta_error("faltan_datos", HTTPStatus.BAD_REQUEST)
 
-    producto = productos.buscar_por_codigo(codigo_barras)
+    producto = productos.buscar_por_codigo(codigo_de_barras)
     if producto is None:
         return respuesta_error("producto_no_encontrado", HTTPStatus.NOT_FOUND)
 
@@ -135,16 +132,9 @@ def aprobar_producto():
     usuarios_acreditados = reciclajes.acreditar_pendientes(producto_aprobado)
     return jsonify({"usuarios_acreditados": usuarios_acreditados}), HTTPStatus.OK
 
-
-
-@app.errorhandler(requests.RequestException)
-def manejar_error_de_base_de_datos(_error):
-    return respuesta_error("error_interno", HTTPStatus.INTERNAL_SERVER_ERROR)
-
-@app.patch("/sumar_puntos")
+@app.patch("/sumar_puntos") # Listo
 def sumar_puntos():
     datos = request.get_json(silent=True) or {}
-    
     dni = str(datos.get("dni") or request.args.get("dni", ""))
     codigo_de_barras = str(datos.get("codigo_de_barras") or request.args.get("codigo_de_barras", ""))
 
@@ -172,6 +162,9 @@ def sumar_puntos():
         "mensaje": f"Se sumaron {puntos_producto} puntos a {usuario_actualizado['nombre']}"
     }), HTTPStatus.OK
 
+#@app.errorhandler(requests.RequestException)
+#def manejar_error_de_base_de_datos(_error):
+#    return respuesta_error("error_interno", HTTPStatus.INTERNAL_SERVER_ERROR)
 
 if __name__ == "__main__":
     app.run(host=HOST, port=PUERTO, debug=True)

@@ -2,10 +2,10 @@
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 
-const char* WIFI_SSID = "Telecentro-3b3e";
-const char* WIFI_PASS = "R2NKJZMLDNKJ";
+const char* WIFI_SSID = "PEINE-3";
+const char* WIFI_PASS = "etecPeine3";
 
-const String URL_SERVIDOR = "http://192.168.0.32:5000";
+const String URL_SERVIDOR = "http://10.9.121.208:5000";
 
 void conectarWifi() {
   WiFi.begin(WIFI_SSID, WIFI_PASS);

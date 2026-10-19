@@ -60,10 +60,9 @@ def _borrar_registro_temporal(id_registro: str):
     respuesta.raise_for_status()
 
 def _guardar_en_temporal(usuario: dict, producto: dict):
-    # quite los campos puntos_otorgados y acreditado para que respete mi esquema
     datos = {
-        "id_usuario": usuario["id"],
-        "id_producto": producto["id"]
+        "id_usuario": usuario["dni"],
+        "id_producto": producto["codigo_de_barras"]
     }
     respuesta = requests.post(
         URL_REGISTRO_TEMPORAL,
