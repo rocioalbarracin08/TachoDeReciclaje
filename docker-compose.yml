@@ -1,9 +1,9 @@
 services:
-  pocketbase:
+  db:
     build: 
       context: ./pocketbase_folder
       dockerfile: Dockerfile
-    container_name: servidor-pocketbase
+    container_name: db-tacho
     ports:
       - "8090:8090"
     volumes:
@@ -14,7 +14,7 @@ services:
     build: 
       context: ./servidor_python
       dockerfile: Dockerfile
-    container_name: api-python
+    container_name: miniservidor-tacho
     ports:
       - "5000:5000"
     env_file:
