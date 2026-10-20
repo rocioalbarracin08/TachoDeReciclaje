@@ -21,7 +21,7 @@ services:
       - ./servidor_python/.env
     restart: unless-stopped
     depends_on:
-      - pocketbase
+      - db
 
 volumes:
   pb_data:
