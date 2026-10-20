@@ -1,0 +1,27 @@
+services:
+  pocketbase:
+    build: 
+      context: ./pocketbase_folder
+      dockerfile: Dockerfile
+    container_name: servidor-pocketbase
+    ports:
+      - "8090:8090"
+    volumes:
+      - pb_data:/app/pb_data
+    restart: unless-stopped
+
+  servidor-python:
+    build: 
+      context: ./servidor_python
+      dockerfile: Dockerfile
+    container_name: api-python
+    ports:
+      - "5000:5000"
+    env_file:
+      - ./servidor_python/.env
+    restart: unless-stopped
+    depends_on:
+      - pocketbase
+
+volumes:
+  pb_data:
