@@ -1,7 +1,7 @@
 services:
   db:
     build: 
-      context: ./pocketbase_folder
+      context: ./pocketbase_0.40.4_linux_amd64
       dockerfile: Dockerfile
     container_name: db-tacho
     ports:
@@ -12,13 +12,13 @@ services:
 
   servidor-python:
     build: 
-      context: ./servidor_python
+      context: ./servidor
       dockerfile: Dockerfile
     container_name: miniservidor-tacho
     ports:
       - "5000:5000"
     env_file:
-      - ./servidor_python/.env
+      - ./servidor/.env.sh
     restart: unless-stopped
     depends_on:
       - db
