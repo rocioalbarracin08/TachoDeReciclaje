@@ -9,5 +9,6 @@ COPY . .
 
 EXPOSE 5000
 
-# Ejecutamos tu aplicación
-CMD ["/pb/pocketbase", "serve", "--http=0.0.0.0:8090", "--dir=/pb/pb_data"]
+# CORRECCIÓN: Debes ejecutar tu script de Python. 
+# Cambia "app.py" por el nombre real de tu archivo principal (ej: main.py, server.py)
+CMD ["python", "app.py"]
