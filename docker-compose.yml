@@ -7,7 +7,7 @@ services:
     ports:
       - "8090:8090"
     volumes:
-      - ./pocketbase_0.40.4_linux_amd64/pb_data:/app/pb_data
+      - ./pb_data:/pb/pb_data
     restart: unless-stopped
 
   servidor-python:
