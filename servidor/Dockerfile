@@ -10,4 +10,4 @@ COPY . .
 EXPOSE 5000
 
 # Ejecutamos tu aplicación
-CMD ["python", "app.py"]
+CMD ["/pb/pocketbase", "serve", "--http=0.0.0.0:8090", "--dir=/pb/pb_data"]
