@@ -1,13 +1,13 @@
 services:
   db:
     build: 
-      context: ./pocketbase_0.40.4_linux_amd64
+      context: ./pocketbase_0.40.4_linux_amd64 # En que carpeta se mete para leer el archivo Dockerfile
       dockerfile: Dockerfile
     container_name: db-tacho
     ports:
       - "8090:8090"
     volumes:
-      - ./pb_data:/db/pb_data
+      - ./pocketbase_0.40.4_linux_amd64/pb_data:/db/pb_data
     restart: unless-stopped
 
   servidor-python:
