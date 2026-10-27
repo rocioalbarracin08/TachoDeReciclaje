@@ -11,4 +11,4 @@ RUN chmod +x /db/pocketbase
 
 EXPOSE 8090
 
-CMD ["./pocketbase", "serve", "--http=0.0.0.0:8090", "--automigrate=0"]
+CMD ["./pocketbase", "serve", "--http=0.0.0.0:8090", "--dir=/db/pb_data", "--automigrate=0"]
