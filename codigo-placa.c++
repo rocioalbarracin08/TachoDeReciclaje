@@ -2,17 +2,26 @@
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 
-const char* WIFI_SSID = "PEINE-3";
-const char* WIFI_PASS = "etecPeine3";
+const char* WIFI_SSID = "PEINE-2";
+const char* WIFI_PASS = "etecPeine2";
+const String URL_SERVIDOR = "http://10.56.31.30:5000";
 
-const String URL_SERVIDOR = "http://10.9.121.208:5000";
+const int PIN_MOTOR = 2; // Pin donde se conecta el motor de la compuerta
 
-void conectarWifi() {
+void conectarWifi() {       
   WiFi.begin(WIFI_SSID, WIFI_PASS);
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
   }
   Serial.println("WiFi conectado");
+}
+
+void abrirCompuerta() {
+  Serial.println("ACEPTADO: Abriendo compuerta del tacho...");
+  digitalWrite(PIN_MOTOR, HIGH);
+  delay(3000); 
+  digitalWrite(PIN_MOTOR, LOW);
+  Serial.println("CERRANDO COMPUERTA.");
 }
 
 void consultarUsuario(const String& dni) {
@@ -30,7 +39,7 @@ void consultarUsuario(const String& dni) {
     Serial.printf("El DNI %s pertenece a: %s %s\n", dni.c_str(), nombre, apellido);
 
   } else if (codigoHttp == HTTP_CODE_NOT_FOUND) {
-    Serial.println("DNI no registrado");
+    Serial.println("Rechazo: DNI no registrado");
   } else if (codigoHttp < 0) {
     Serial.printf("No se pudo conectar al servidor (error %d)\n", codigoHttp);
   } else {
@@ -42,7 +51,7 @@ void consultarUsuario(const String& dni) {
 
 void consultarProducto(const String& codigoBarras) {
   HTTPClient http;
-  http.begin(URL_SERVIDOR + "/producto?codigo_barras=" + codigoBarras);
+  http.begin(URL_SERVIDOR + "/producto?codigo_de_barras=" + codigoBarras);
   int codigoHttp = http.GET();
 
   if (codigoHttp == HTTP_CODE_OK) {
@@ -51,20 +60,18 @@ void consultarProducto(const String& codigoBarras) {
 
     const char* nombre = producto["nombre"].as<const char*>();
     bool reciclable = producto["reciclable"].as<bool>();
-    int puntos = producto["puntos"].as<int>();
 
-    Serial.printf("Producto encontrado (%s): %s\n", codigoBarras.c_str(), nombre);
-    
-    /*
     if (reciclable) {
-      Serial.printf(" -> Estado: APROBADO. Suma %d puntos.\n", puntos);
+      Serial.printf("Producto válido (%s): %s.\n", codigoBarras.c_str(), nombre);
+      abrirCompuerta(); // Uso lafunción del motor para brir compuertas
     } else {
-      Serial.println(" -> Estado: PENDIENTE. Aún no está aprobado para sumar puntos.");
+      Serial.printf("RECHAZO: El producto '%s' (%s) existe pero NO es reciclable.\n", nombre, codigoBarras.c_str());
     }
-    */
 
   } else if (codigoHttp == HTTP_CODE_NOT_FOUND) {
-    Serial.printf("El producto %s NO esta registrado en la base de datos.\n", codigoBarras.c_str());
+    Serial.printf("❌ RECHAZO: El producto %s NO está registrado en la base de datos.\n", codigoBarras.c_str());
+  } else if (codigoHttp == HTTP_CODE_BAD_REQUEST) {
+    Serial.println("❌ RECHAZO: Formato inválido (el código no es numérico).");
   } else if (codigoHttp < 0) {
     Serial.printf("No se pudo conectar al servidor (error %d)\n", codigoHttp);
   } else {
@@ -76,16 +83,18 @@ void consultarProducto(const String& codigoBarras) {
 
 void setup() {
   Serial.begin(115200);
-  delay(1000); 
-  Serial.println("\nIniciando ESP32");
+  pinMode(PIN_MOTOR, OUTPUT);
+  digitalWrite(PIN_MOTOR, LOW); 
+  delay(1000);
   
+  Serial.println("\nIniciando ESP32");
   conectarWifi();
   
   Serial.println("\n--- Probando Usuario ---");
   consultarUsuario("48594871");
 
   Serial.println("\n--- Probando Producto ---");
-  consultarProducto("7790895645778"); // "fsf" no es numérico -> devuelve HTTP 400 Bad Request
+  consultarProducto("7790895645778"); 
 }
 
 void loop() {}

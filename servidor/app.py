@@ -1,9 +1,7 @@
 import os
 from http import HTTPStatus
-
 import requests
 from flask import Flask, jsonify, request
-
 import productos, reciclajes, usuarios
 
 CLAVE_ADMIN = os.environ.get("CLAVE_ADMIN", "")
@@ -12,34 +10,26 @@ PUERTO = int(os.environ.get("PUERTO", "5000"))
 
 app = Flask(__name__)
 
-
 def respuesta_error(codigo_error, estado_http):
     return jsonify({"error": codigo_error}), estado_http
 
-
 def respuesta_reciclaje(usuario, producto, puntos_sumados):
-    if productos.esta_aprobado(producto):
-        mensaje = f"Felicitaciones {usuario['nombre']} sumaste {puntos_sumados} puntos"
-        estado_http = HTTPStatus.OK
-    else:
-        mensaje = f"Gracias {usuario['nombre']}! Producto en revision"
-        estado_http = HTTPStatus.ACCEPTED
-
+    # En el MVP, si llega a este punto es porque el producto es reciclable y válido
+    mensaje = f"Felicitaciones {usuario['nombre']} sumaste {puntos_sumados} puntos"
     cuerpo = {
         "nombre": usuario["nombre"],
         "puntos_sumados": puntos_sumados,
         "puntos": usuario["puntos"],
         "mensaje": mensaje,
     }
-    return jsonify(cuerpo), estado_http
-
+    return jsonify(cuerpo), HTTPStatus.OK
 
 def es_administrador():
     clave_recibida = request.headers.get("X-Admin-Clave", "")
     return bool(CLAVE_ADMIN) and clave_recibida == CLAVE_ADMIN
 
-
-@app.get("/usuario") # listo
+# ENDPOINTS ACTIVOS (MVP)
+@app.get("/usuario")
 def consultar_usuario():
     dni = request.args.get("dni", "")
     if not dni.isdigit():
@@ -56,28 +46,7 @@ def consultar_usuario():
     }
     return jsonify(cuerpo), HTTPStatus.OK
 
-@app.post("/usuario") # 2do release para el pr0blema de sì el usuario no estaba registrado
-def registrar_usuario():
-    datos = request.get_json(silent=True) or {}
-    dni = str(datos.get("dni", ""))
-    nombre = str(datos.get("nombre", "")).strip()
-    apellido = str(datos.get("apellido", "")).strip()
-
-    if not (dni.isdigit() and nombre and apellido):
-        return respuesta_error("faltan_datos", HTTPStatus.BAD_REQUEST)
-
-    if usuarios.buscar_por_dni(dni) is not None:
-        return respuesta_error("usuario_ya_registrado", HTTPStatus.CONFLICT)
-
-    usuario = usuarios.crear(dni, nombre, apellido)
-    cuerpo = {
-        "nombre": usuario["nombre"],
-        "apellido": usuario["apellido"],
-        "puntos": usuario["puntos"],
-    }
-    return jsonify(cuerpo), HTTPStatus.CREATED
-
-@app.get("/producto") # listo
+@app.get("/producto")
 def consultar_producto():
     codigo_de_barras = request.args.get("codigo_de_barras", "")
     if not codigo_de_barras.isdigit():
@@ -105,11 +74,43 @@ def reciclar():
 
     usuario = usuarios.buscar_por_dni(dni)
     if usuario is None:
-        return respuesta_error("usuario_no_registrado", HTTPStatus.NOT_FOUND)
+        return respuesta_error("usuario no registrado", HTTPStatus.NOT_FOUND)
 
-    producto = productos.obtener_o_registrar(codigo_de_barras)
+    # Solo busca en BD local. Se rechaza directamente si no existe o no es reciclable.
+    producto = productos.buscar_por_codigo(codigo_de_barras)
+    
+    if producto is None:
+        return respuesta_error("producto no registrado", HTTPStatus.NOT_FOUND)
+
+    if not productos.esta_aprobado(producto):
+        return respuesta_error("producto no reciclable", HTTPStatus.UNPROCESSABLE_ENTITY)
+
     puntos_sumados, usuario_actualizado = reciclajes.registrar(usuario, producto)
     return respuesta_reciclaje(usuario_actualizado, producto, puntos_sumados)
+
+
+# ENDPOINTS PARA 2DO RELEASE (INACTIVOS)
+"""
+@app.post("/usuario")
+def registrar_usuario():
+    datos = request.get_json(silent=True) or {}
+    dni = str(datos.get("dni", ""))
+    nombre = str(datos.get("nombre", "")).strip()
+    apellido = str(datos.get("apellido", "")).strip()
+
+    if not (dni.isdigit() and nombre and apellido):
+        return respuesta_error("faltan_datos", HTTPStatus.BAD_REQUEST)
+
+    if usuarios.buscar_por_dni(dni) is not None:
+        return respuesta_error("usuario_ya_registrado", HTTPStatus.CONFLICT)
+
+    usuario = usuarios.crear(dni, nombre, apellido)
+    cuerpo = {
+        "nombre": usuario["nombre"],
+        "apellido": usuario["apellido"],
+        "puntos": usuario["puntos"],
+    }
+    return jsonify(cuerpo), HTTPStatus.CREATED
 
 @app.post("/admin/aprobar-producto")
 def aprobar_producto():
@@ -132,7 +133,7 @@ def aprobar_producto():
     usuarios_acreditados = reciclajes.acreditar_pendientes(producto_aprobado)
     return jsonify({"usuarios_acreditados": usuarios_acreditados}), HTTPStatus.OK
 
-@app.patch("/sumar_puntos") # Listo
+@app.patch("/sumar_puntos")
 def sumar_puntos():
     datos = request.get_json(silent=True) or {}
     dni = str(datos.get("dni") or request.args.get("dni", ""))
@@ -161,10 +162,7 @@ def sumar_puntos():
         "nueva cantidad de puntos": usuario_actualizado["puntos"],
         "mensaje": f"Se sumaron {puntos_producto} puntos a {usuario_actualizado['nombre']}"
     }), HTTPStatus.OK
-
-#@app.errorhandler(requests.RequestException)
-#def manejar_error_de_base_de_datos(_error):
-#    return respuesta_error("error_interno", HTTPStatus.INTERNAL_SERVER_ERROR)
+"""
 
 if __name__ == "__main__":
     app.run(host=HOST, port=PUERTO, debug=True)
