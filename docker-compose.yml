@@ -7,7 +7,7 @@ services:
     ports:
       - "8090:8090"
     volumes:
-      - ./pocketbase_0.40.4_linux_amd64/pb_data:/db/pb_data
+      - ./pocketbase_0.40.4_linux_amd64/pb_data:/db/ # Problema por mala ubicación de dónde sacar los volúmenes
     restart: unless-stopped
 
   servidor-python:
