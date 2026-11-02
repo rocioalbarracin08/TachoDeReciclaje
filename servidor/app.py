@@ -10,11 +10,10 @@ PUERTO = int(os.environ.get("PUERTO", "5000"))
 
 app = Flask(__name__)
 
-def respuesta_error(codigo_error, estado_http):
-    return jsonify({"error": codigo_error}), estado_http
+def respuesta_error(mensaje_error, estado_http):
+    return jsonify({"error": mensaje_error}), estado_http
 
 def respuesta_reciclaje(usuario, producto, puntos_sumados):
-    # En el MVP, si llega a este punto es porque el producto es reciclable y válido
     mensaje = f"Felicitaciones {usuario['nombre']} sumaste {puntos_sumados} puntos"
     cuerpo = {
         "nombre": usuario["nombre"],
@@ -33,28 +32,27 @@ def es_administrador():
 def consultar_usuario():
     dni = request.args.get("dni", "")
     if not dni.isdigit():
-        return respuesta_error("faltan_datos", HTTPStatus.BAD_REQUEST)
+        return respuesta_error("Faltan datos", HTTPStatus.BAD_REQUEST)
 
     usuario = usuarios.buscar_por_dni(dni)
     if usuario is None:
-        return respuesta_error("usuario_no_registrado", HTTPStatus.NOT_FOUND)
+        return respuesta_error("Usuario no registrado", HTTPStatus.NOT_FOUND)
 
     cuerpo = {
         "nombre": usuario["nombre"],
-        "apellido": usuario["apellido"],
         "puntos": usuario["puntos"],
     }
     return jsonify(cuerpo), HTTPStatus.OK
 
 @app.get("/producto")
 def consultar_producto():
-    codigo_de_barras = request.args.get("codigo_de_barras", "")
+    codigo_de_barras = request.args.get("codigo_de_barras") or request.args.get("codigo_barras", "")
     if not codigo_de_barras.isdigit():
-        return respuesta_error("faltan_datos", HTTPStatus.BAD_REQUEST)
+        return respuesta_error("Faltan datos", HTTPStatus.BAD_REQUEST)
 
     producto = productos.buscar_por_codigo(codigo_de_barras)
     if producto is None:
-        return respuesta_error("producto_no_registrado", HTTPStatus.NOT_FOUND)
+        return respuesta_error("Producto no registrado", HTTPStatus.NOT_FOUND)
 
     cuerpo = {
         "nombre": producto["nombre"],
@@ -67,23 +65,21 @@ def consultar_producto():
 def reciclar():
     datos = request.get_json(silent=True) or {}
     dni = str(datos.get("dni", ""))
-    codigo_de_barras = str(datos.get("codigo_de_barras", ""))
+    codigo_de_barras = str(datos.get("codigo_de_barras") or datos.get("codigo_barras", ""))
 
     if not (dni.isdigit() and codigo_de_barras.isdigit()):
-        return respuesta_error("faltan_datos", HTTPStatus.BAD_REQUEST)
+        return respuesta_error("Faltan datos", HTTPStatus.BAD_REQUEST)
 
     usuario = usuarios.buscar_por_dni(dni)
     if usuario is None:
-        return respuesta_error("usuario no registrado", HTTPStatus.NOT_FOUND)
+        return respuesta_error("Usuario no registrado", HTTPStatus.NOT_FOUND)
 
-    # Solo busca en BD local. Se rechaza directamente si no existe o no es reciclable.
     producto = productos.buscar_por_codigo(codigo_de_barras)
-    
     if producto is None:
-        return respuesta_error("producto no registrado", HTTPStatus.NOT_FOUND)
+        return respuesta_error("Producto no registrado", HTTPStatus.NOT_FOUND)
 
     if not productos.esta_aprobado(producto):
-        return respuesta_error("producto no reciclable", HTTPStatus.UNPROCESSABLE_ENTITY)
+        return respuesta_error("Producto no reciclable", HTTPStatus.UNPROCESSABLE_ENTITY)
 
     puntos_sumados, usuario_actualizado = reciclajes.registrar(usuario, producto)
     return respuesta_reciclaje(usuario_actualizado, producto, puntos_sumados)
