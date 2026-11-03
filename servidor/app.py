@@ -65,7 +65,7 @@ def consultar_producto():
 def reciclar():
     datos = request.get_json(silent=True) or {}
     dni = str(datos.get("dni", ""))
-    codigo_de_barras = str(datos.get("codigo_de_barras") or datos.get("codigo_barras", ""))
+    codigo_de_barras = str(datos.get("codigo_de_barras") or datos.get("codigo_de_barras", ""))
 
     if not (dni.isdigit() and codigo_de_barras.isdigit()):
         return respuesta_error("Faltan datos", HTTPStatus.BAD_REQUEST)
