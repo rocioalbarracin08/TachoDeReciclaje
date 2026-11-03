@@ -32,7 +32,7 @@ def es_administrador():
 def consultar_usuario():
     dni = request.args.get("dni", "")
     if not dni.isdigit():
-        return respuesta_error("Faltan datos", HTTPStatus.BAD_REQUEST)
+        return respuesta_error("Falta el DNI", HTTPStatus.BAD_REQUEST)
 
     usuario = usuarios.buscar_por_dni(dni)
     if usuario is None:
@@ -48,7 +48,7 @@ def consultar_usuario():
 def consultar_producto():
     codigo_de_barras = request.args.get("codigo_de_barras") or request.args.get("codigo_barras", "")
     if not codigo_de_barras.isdigit():
-        return respuesta_error("Faltan datos", HTTPStatus.BAD_REQUEST)
+        return respuesta_error("Falta el cód de barras", HTTPStatus.BAD_REQUEST)
 
     producto = productos.buscar_por_codigo(codigo_de_barras)
     if producto is None:
