@@ -31,18 +31,51 @@ def es_administrador():
 @app.get("/usuario")
 def consultar_usuario():
     dni = request.args.get("dni", "")
+
     if not dni.isdigit():
-        return respuesta_error("Falta el DNI", HTTPStatus.BAD_REQUEST)
+        return respuesta_error("DNI inválido", HTTPStatus.BAD_REQUEST)
 
     usuario = usuarios.buscar_por_dni(dni)
+
     if usuario is None:
         return respuesta_error("Usuario no registrado", HTTPStatus.NOT_FOUND)
 
-    cuerpo = {
-        "nombre": usuario["nombre"],
-        "puntos": usuario["puntos"],
-    }
-    return jsonify(cuerpo), HTTPStatus.OK
+    return jsonify({
+        "id": usuario.get("id", ""),
+        "dni": usuario.get("dni", ""),
+        "nombre": usuario.get("nombre", ""),
+        "apellido": usuario.get("apellido", ""),
+        "puntos": usuario.get("puntos", 0),
+        "created": usuario.get("created", ""), # Fecha de registro del usuario
+        "updated": usuario.get("updated") or usuario.get("created", ""), # Si no existe updated, usa created por defecto
+    }), HTTPStatus.OK
+
+@app.post("/usuario")
+def registrar_usuario():
+    datos = request.get_json(silent=True) or {}
+
+    dni = str(datos.get("dni", ""))
+    nombre = str(datos.get("nombre", "")).strip()
+    apellido = str(datos.get("apellido", "")).strip()
+
+    if not (dni.isdigit() and nombre and apellido):
+        return respuesta_error("Faltan datos", HTTPStatus.BAD_REQUEST)
+
+    if usuarios.buscar_por_dni(dni) is not None:
+        return respuesta_error("Usuario ya registrado", HTTPStatus.CONFLICT)
+
+    usuario = usuarios.crear(dni, nombre, apellido)
+
+    # USAR .get() SEGURO PARA EVITAR KeyError EN updated O CUALQUIER CAMPO
+    return jsonify({
+        "id": usuario.get("id", ""),
+        "dni": usuario.get("dni", ""),
+        "nombre": usuario.get("nombre", ""),
+        "apellido": usuario.get("apellido", ""),
+        "puntos": usuario.get("puntos", 0),
+        "created": usuario.get("created", ""),
+        "updated": usuario.get("updated") or usuario.get("created", ""),
+    }), HTTPStatus.CREATED
 
 @app.get("/producto")
 def consultar_producto():
@@ -65,7 +98,7 @@ def consultar_producto():
 def reciclar():
     datos = request.get_json(silent=True) or {}
     dni = str(datos.get("dni", ""))
-    codigo_de_barras = str(datos.get("codigo_de_barras") or datos.get("codigo_barras", ""))
+    codigo_de_barras = str(datos.get("codigo_de_barras") or datos.get("codigo_de_barras", ""))
 
     if not (dni.isdigit() and codigo_de_barras.isdigit()):
         return respuesta_error("Faltan datos", HTTPStatus.BAD_REQUEST)
@@ -87,27 +120,6 @@ def reciclar():
 
 # ENDPOINTS PARA 2DO RELEASE (INACTIVOS)
 """
-@app.post("/usuario")
-def registrar_usuario():
-    datos = request.get_json(silent=True) or {}
-    dni = str(datos.get("dni", ""))
-    nombre = str(datos.get("nombre", "")).strip()
-    apellido = str(datos.get("apellido", "")).strip()
-
-    if not (dni.isdigit() and nombre and apellido):
-        return respuesta_error("faltan_datos", HTTPStatus.BAD_REQUEST)
-
-    if usuarios.buscar_por_dni(dni) is not None:
-        return respuesta_error("usuario_ya_registrado", HTTPStatus.CONFLICT)
-
-    usuario = usuarios.crear(dni, nombre, apellido)
-    cuerpo = {
-        "nombre": usuario["nombre"],
-        "apellido": usuario["apellido"],
-        "puntos": usuario["puntos"],
-    }
-    return jsonify(cuerpo), HTTPStatus.CREATED
-
 @app.post("/admin/aprobar-producto")
 def aprobar_producto():
     if not es_administrador():
