@@ -41,18 +41,24 @@ export default function PaginaRegistro() {
 
     setCargando(true);
     try {
+      // 1. Verificamos primero si existe por DNI
       const existe = await buscarUsuarioPorDni(dni);
       if (existe) {
-        setError("Ese DNI ya está registrado");
+        setError("El usuario ya está registrado");
         setCargando(false);
         return;
       }
 
+      // 2. Registramos a través del backend en Python
       await crearUsuarioSinPuntos({ dni, nombre, apellido });
       await guardarDniEnSesion(dni);
       router.replace("/perfil");
-    } catch (e) {
-      setError("Error al registrar el usuario");
+    } catch (e: any) {
+      if (e?.message === "USUARIO_ALYA_REGISTRADO") {
+        setError("El usuario ya está registrado");
+      } else {
+        setError("Error de conexión al servidor");
+      }
     } finally {
       setCargando(false);
     }

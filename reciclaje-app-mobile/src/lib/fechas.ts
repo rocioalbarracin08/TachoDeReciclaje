@@ -1,34 +1,42 @@
 const ZONA_HORARIA_ARGENTINA = "America/Argentina/Buenos_Aires";
 
-const UNIDADES_DE_MAYOR_A_MENOR: [Intl.RelativeTimeFormatUnit, number][] = [
-  ["day", 86_400],
-  ["hour", 3_600],
-  ["minute", 60],
-];
-
-// Agrega la validación para devolver una fecha o valor por defecto si fechaTexto es undefined/vacío
-const convertirFechaDePocketBase = (fechaTexto?: string) => {
+// Convierte la fecha recibida desde el backend o PocketBase
+const convertirFechaDePocketBase = (fechaTexto?: string): Date => {
   if (!fechaTexto) return new Date();
-  return new Date(fechaTexto.replace(" ", "T"));
+  // PocketBase suele mandar "YYYY-MM-DD HH:mm:ss.zzzZ", reemplazamos espacio por T para Date
+  const ISO = fechaTexto.includes(" ") ? fechaTexto.replace(" ", "T") : fechaTexto;
+  const d = new Date(ISO);
+  return isNaN(d.getTime()) ? new Date() : d;
 };
 
-export function describirTiempoTranscurrido(fechaTexto: string) {
-  const segundosDeDiferencia = Math.round(
-    (convertirFechaDePocketBase(fechaTexto).getTime() - Date.now()) / 1000,
-  );
-  const formateador = new Intl.RelativeTimeFormat("es-AR", { numeric: "auto" });
+export function describirTiempoTranscurrido(fechaTexto?: string): string {
+  if (!fechaTexto) return "Sin registros";
+  
+  const fecha = convertirFechaDePocketBase(fechaTexto);
+  const segundos = Math.floor((Date.now() - fecha.getTime()) / 1000);
 
-  for (const [unidad, segundosPorUnidad] of UNIDADES_DE_MAYOR_A_MENOR) {
-    if (Math.abs(segundosDeDiferencia) >= segundosPorUnidad) {
-      return formateador.format(Math.round(segundosDeDiferencia / segundosPorUnidad), unidad);
-    }
-  }
-  return "hace instantes";
+  if (segundos < 60) return "hace instantes";
+  
+  const minutos = Math.floor(segundos / 60);
+  if (minutos < 60) return `hace ${minutos} min`;
+  
+  const horas = Math.floor(minutos / 60);
+  if (horas < 24) return `hace ${horas} h`;
+  
+  const dias = Math.floor(horas / 24);
+  return `hace ${dias} d`;
 }
 
-export const formatearFechaCompleta = (fechaTexto: string) =>
-  convertirFechaDePocketBase(fechaTexto).toLocaleString("es-AR", {
-    timeZone: ZONA_HORARIA_ARGENTINA,
-    dateStyle: "long",
-    timeStyle: "short",
-  });
+export const formatearFechaCompleta = (fechaTexto?: string): string => {
+  if (!fechaTexto) return "-";
+  const fecha = convertirFechaDePocketBase(fechaTexto);
+  try {
+    return fecha.toLocaleString("es-AR", {
+      timeZone: ZONA_HORARIA_ARGENTINA,
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+  } catch (e) {
+    return fecha.toLocaleDateString();
+  }
+};

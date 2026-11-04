@@ -1,13 +1,7 @@
 import PocketBase from "pocketbase";
 
-const clienteAdministrador = new PocketBase(process.env.POCKETBASE_URL ?? "http://127.0.0.1:8090");
+// ⚠️ Cambiá esta IP por la IP real de tu computadora en la red Wi-Fi
+const IP_DE_TU_COMPUTADORA = "192.168.0.32";
 
-/** Autentica como superusuario solo cuando el token venció o todavía no existe. */
-export async function obtenerClienteAdministrador() {
-  if (!clienteAdministrador.authStore.isValid) {
-    await clienteAdministrador
-      .collection("_superusers")
-      .authWithPassword(process.env.POCKETBASE_ADMIN_EMAIL!, process.env.POCKETBASE_ADMIN_PASSWORD!);
-  }
-  return clienteAdministrador;
-}
+// Exportamos la instancia cliente directa para React Native
+export const pocketbase = new PocketBase(`http://${IP_DE_TU_COMPUTADORA}:8090`);

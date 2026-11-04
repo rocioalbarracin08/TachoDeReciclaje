@@ -1,25 +1,38 @@
-import { ClientResponseError } from "pocketbase";
-import { obtenerClienteAdministrador } from "./pocketbase";
+import { URL_SERVIDOR_PYTHON } from "./api";
 import type { DatosDni, Usuario } from "./tipos";
 
-const COLECCION_USUARIOS = "usuarios";
-const PUNTOS_INICIALES_AL_REGISTRARSE = 0;
-
+// 1. Consultar usuario por DNI (GET /usuario?dni=...)
 export async function buscarUsuarioPorDni(dni: string): Promise<Usuario | null> {
-  const pocketbase = await obtenerClienteAdministrador();
-  try {
-    return await pocketbase
-      .collection(COLECCION_USUARIOS)
-      .getFirstListItem<Usuario>(pocketbase.filter("dni = {:dni}", { dni }));
-  } catch (error) {
-    if (error instanceof ClientResponseError && error.status === 404) return null;
-    throw error;
+  const respuesta = await fetch(`${URL_SERVIDOR_PYTHON}/usuario?dni=${dni}`);
+
+  if (respuesta.status === 404) {
+    return null; // Usuario no registrado
   }
+
+  if (!respuesta.ok) {
+    throw new Error("ERROR_SERVIDOR");
+  }
+
+  return await respuesta.json();
 }
 
-export async function crearUsuarioSinPuntos(datos: DatosDni) {
-  const pocketbase = await obtenerClienteAdministrador();
-  return pocketbase
-    .collection(COLECCION_USUARIOS)
-    .create<Usuario>({ ...datos, puntos: PUNTOS_INICIALES_AL_REGISTRARSE });
+// 2. Registrar usuario nuevo (POST /usuario)
+export async function crearUsuarioSinPuntos(datos: DatosDni): Promise<Usuario> {
+  const respuesta = await fetch(`${URL_SERVIDOR_PYTHON}/usuario`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(datos),
+  });
+
+  if (respuesta.status === 409) {
+    throw new Error("USUARIO_ALYA_REGISTRADO");
+  }
+
+  if (!respuesta.ok) {
+    throw new Error("ERROR_SERVIDOR");
+  }
+
+  return await respuesta.json();
 }
