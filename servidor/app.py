@@ -65,15 +65,15 @@ def registrar_usuario():
 
     usuario = usuarios.crear(dni, nombre, apellido)
 
+    # USAR .get() SEGURO PARA EVITAR KeyError EN updated O CUALQUIER CAMPO
     return jsonify({
-        "id": usuario["id"],
-        "dni": usuario["dni"],
-        "nombre": usuario["nombre"],
-        "apellido": usuario["apellido"],
-        "puntos": usuario["puntos"],
-        "updated": usuario["updated"],
+        "id": usuario.get("id", ""),
+        "dni": usuario.get("dni", ""),
+        "nombre": usuario.get("nombre", ""),
+        "apellido": usuario.get("apellido", ""),
+        "puntos": usuario.get("puntos", 0),
+        "updated": usuario.get("updated", ""),
     }), HTTPStatus.CREATED
-
 
 @app.get("/producto")
 def consultar_producto():
