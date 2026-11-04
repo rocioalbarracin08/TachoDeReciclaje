@@ -1,6 +1,6 @@
 export POCKETBASE_ADMIN_EMAIL="area@gmail.com"
 export POCKETBASE_ADMIN_PASSWORD="area2026"
-export POCKETBASE_URL="http://192.168.0.32:8090" #aca va db
+export POCKETBASE_URL="http://db" #aca va db
 export CLAVE_ADMIN="area2026"
 export HOST="0.0.0.0"
 export PUERTO="5000"
