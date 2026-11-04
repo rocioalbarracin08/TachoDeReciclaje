@@ -26,6 +26,7 @@ export default function PaginaPerfil() {
         return;
       }
       const datos = await buscarUsuarioPorDni(dni);
+      console.log("DATOS RECIBIDOS EN PERFIL:", datos); // <-- Mirá tu terminal de Expo
       if (!datos) {
         router.replace("/");
         return;
@@ -60,9 +61,15 @@ export default function PaginaPerfil() {
           {usuario.puntos} <Text style={styles.puntosSmall}>puntos</Text>
         </Text>
 
-        <Text style={styles.detalle}>
-          Último movimiento: {describirTiempoTranscurrido(usuario.updated)} ({formatearFechaCompleta(usuario.updated)})
-        </Text>
+        {/* Fecha de registro */}
+          <Text style={styles.detalle}>
+            Miembro desde: {formatearFechaCompleta(usuario.created)}
+          </Text>
+
+          {/* Última actividad */}
+          <Text style={styles.detalle}>
+            Último movimiento: {describirTiempoTranscurrido(usuario.updated)}
+          </Text>
 
         <View style={styles.tabla}>
           <View style={styles.fila}>
@@ -90,7 +97,14 @@ export default function PaginaPerfil() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: "#f2f7f2" },
   centro: { justifyContent: "center", alignItems: "center" },
-  container: { padding: 24, maxWidth: 420, alignSelf: "center", width: "100%" },
+  container: { 
+      flex: 1,                    // Ocupa todo el espacio de safeArea
+      justifyContent: "center",    // Centra la tarjeta e información en la altura de la pantalla
+      padding: 24, 
+      maxWidth: 420, 
+      alignSelf: "center", 
+      width: "100%" 
+    },
   titulo: { fontSize: 28, fontWeight: "bold", color: "#1b2a1b", marginBottom: 12 },
   puntos: { fontSize: 56, fontWeight: "800", color: "#2e7d32", marginVertical: 4 },
   puntosSmall: { fontSize: 20, fontWeight: "400" },

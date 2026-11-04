@@ -46,7 +46,8 @@ def consultar_usuario():
         "nombre": usuario.get("nombre", ""),
         "apellido": usuario.get("apellido", ""),
         "puntos": usuario.get("puntos", 0),
-        "updated": usuario.get("updated", ""),  # <-- Usar .get() previene el KeyError
+        "created": usuario.get("created", ""), # Fecha de registro del usuario
+        "updated": usuario.get("updated") or usuario.get("created", ""), # Si no existe updated, usa created por defecto
     }), HTTPStatus.OK
 
 @app.post("/usuario")
@@ -72,7 +73,8 @@ def registrar_usuario():
         "nombre": usuario.get("nombre", ""),
         "apellido": usuario.get("apellido", ""),
         "puntos": usuario.get("puntos", 0),
-        "updated": usuario.get("updated", ""),
+        "created": usuario.get("created", ""),
+        "updated": usuario.get("updated") or usuario.get("created", ""),
     }), HTTPStatus.CREATED
 
 @app.get("/producto")

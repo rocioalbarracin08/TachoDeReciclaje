@@ -4,7 +4,8 @@ export type Usuario = {
   nombre: string;
   apellido: string;
   puntos: number;
-  updated: string; // fecha de la última modificación (se usa para "último movimiento de puntos")
+  created: string;
+  updated?: string;
 };
 
 export type DatosDni = Pick<Usuario, "dni" | "nombre" | "apellido">;

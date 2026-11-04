@@ -22,6 +22,9 @@ export default function PaginaRegistro() {
   const [error, setError] = useState("");
   const [avisoDeEscaneo, setAvisoDeEscaneo] = useState("");
   const [cargando, setCargando] = useState(false);
+  
+  // Estado para controlar la visibilidad del cuadro verde
+  const [registroExitoso, setRegistroExitoso] = useState(false);
 
   function completarCamposDesdeCodigo(textoDelCodigo: string) {
     const datos = extraerDatosDeCodigoPdf417(textoDelCodigo);
@@ -34,6 +37,8 @@ export default function PaginaRegistro() {
 
   async function handleRegistrar() {
     setError("");
+    setRegistroExitoso(false);
+
     if (!dni || !nombre || !apellido || !/^\d{7,8}$/.test(dni)) {
       setError("Completá DNI, nombre y apellido válidos");
       return;
@@ -41,7 +46,6 @@ export default function PaginaRegistro() {
 
     setCargando(true);
     try {
-      // 1. Verificamos primero si existe por DNI
       const existe = await buscarUsuarioPorDni(dni);
       if (existe) {
         setError("El usuario ya está registrado");
@@ -49,12 +53,19 @@ export default function PaginaRegistro() {
         return;
       }
 
-      // 2. Registramos a través del backend en Python
       await crearUsuarioSinPuntos({ dni, nombre, apellido });
       await guardarDniEnSesion(dni);
-      router.replace("/perfil");
+
+      // Mostramos el cuadro verde de éxito
+      setRegistroExitoso(true);
+
+      // Redirigimos al perfil después de 2 segundos
+      setTimeout(() => {
+        router.replace("/perfil");
+      }, 2000);
+
     } catch (e: any) {
-      if (e?.message === "USUARIO_ALYA_REGISTRADO") {
+      if (e?.message === "USUARIO_YA_REGISTRADO") {
         setError("El usuario ya está registrado");
       } else {
         setError("Error de conexión al servidor");
@@ -68,6 +79,15 @@ export default function PaginaRegistro() {
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.titulo}>Registro</Text>
+
+        {/* CUADRO VERDE: Solo se muestra si el registro fue exitoso */}
+        {registroExitoso && (
+          <View style={styles.cuadroExito}>
+            <Text style={styles.textoExito}>
+              ¡Usuario registrado correctamente! Redirigiendo...
+            </Text>
+          </View>
+        )}
 
         <EscanerDni alDetectarCodigo={completarCamposDesdeCodigo} />
         {avisoDeEscaneo ? <Text style={styles.aviso}>{avisoDeEscaneo}</Text> : null}
@@ -95,9 +115,9 @@ export default function PaginaRegistro() {
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         <TouchableOpacity
-          style={[styles.botonPrincipal, cargando && styles.botonDeshabilitado]}
+          style={[styles.botonPrincipal, (cargando || registroExitoso) && styles.botonDeshabilitado]}
           onPress={handleRegistrar}
-          disabled={cargando}
+          disabled={cargando || registroExitoso}
         >
           <Text style={styles.textoBotonPrincipal}>
             {cargando ? "Registrando..." : "Registrarse"}
@@ -119,8 +139,34 @@ export default function PaginaRegistro() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: "#f2f7f2" },
-  container: { padding: 24, maxWidth: 420, alignSelf: "center", width: "100%" },
+  container: {
+    flexGrow: 1,
+    justifyContent: "center",
+    paddingHorizontal: 24,
+    paddingVertical: 32,
+    maxWidth: 420,
+    alignSelf: "center",
+    width: "100%",
+  },
   titulo: { fontSize: 28, fontWeight: "bold", color: "#1b2a1b", marginBottom: 16 },
+  
+  /* ESTILOS DEL CUADRO VERDE */
+  cuadroExito: {
+    backgroundColor: "#d4edda",
+    borderColor: "#c3e6cb",
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 14,
+    marginBottom: 16,
+    alignItems: "center",
+  },
+  textoExito: {
+    color: "#155724",
+    fontSize: 14,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+
   campo: { marginBottom: 14 },
   label: { fontSize: 14, fontWeight: "600", color: "#1b2a1b", marginBottom: 4 },
   input: {

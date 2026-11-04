@@ -1,16 +1,15 @@
 const ZONA_HORARIA_ARGENTINA = "America/Argentina/Buenos_Aires";
 
-// Convierte la fecha recibida desde el backend o PocketBase
 const convertirFechaDePocketBase = (fechaTexto?: string): Date => {
   if (!fechaTexto) return new Date();
-  // PocketBase suele mandar "YYYY-MM-DD HH:mm:ss.zzzZ", reemplazamos espacio por T para Date
+  // Convierte el formato "YYYY-MM-DD HH:mm:ss" de PocketBase a formato ISO compatible con JS
   const ISO = fechaTexto.includes(" ") ? fechaTexto.replace(" ", "T") : fechaTexto;
   const d = new Date(ISO);
   return isNaN(d.getTime()) ? new Date() : d;
 };
 
 export function describirTiempoTranscurrido(fechaTexto?: string): string {
-  if (!fechaTexto) return "Sin registros";
+  if (!fechaTexto) return "Fecha no disponible";
   
   const fecha = convertirFechaDePocketBase(fechaTexto);
   const segundos = Math.floor((Date.now() - fecha.getTime()) / 1000);

@@ -98,7 +98,15 @@ export default function PaginaIniciarSesion() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: "#f2f7f2" },
-  container: { padding: 24, maxWidth: 420, alignSelf: "center", width: "100%" },
+  container: { 
+      flexGrow: 1,                // Permite expandirse a lo largo de toda la pantalla
+      justifyContent: "center",    // Centra el contenido verticalmente en la pantalla
+      paddingHorizontal: 24, 
+      paddingVertical: 32,         // Da aire arriba y abajo para que no choque la status bar / notch
+      maxWidth: 420, 
+      alignSelf: "center", 
+      width: "100%" 
+    },
   titulo: { fontSize: 28, fontWeight: "bold", color: "#1b2a1b", marginBottom: 16 },
   campo: { marginBottom: 16 },
   label: { fontSize: 14, fontWeight: "600", color: "#1b2a1b", marginBottom: 6 },
