@@ -15,6 +15,17 @@ import { buscarUsuarioPorDni } from "@/lib/usuarios";
 import { guardarDniEnSesion, guardarClaveAdminEnSesion } from "@/lib/sesion";
 import { validarYListarCanjesAdmin } from "@/lib/admin";
 
+function IconoOjito({ visible }: { visible: boolean }) {
+  return (
+    <View style={styles.iconoOjoContenedor}>
+      <View style={styles.iconoOjoContorno}>
+        <View style={styles.iconoOjoPupila} />
+      </View>
+      {!visible && <View style={styles.iconoOjoTachado} />}
+    </View>
+  );
+}
+
 export default function PaginaIniciarSesion() {
   const router = useRouter();
   const [dni, setDni] = useState("");
@@ -25,6 +36,7 @@ export default function PaginaIniciarSesion() {
   // Estados para ingreso de Admin
   const [modoAdmin, setModoAdmin] = useState(false);
   const [claveAdmin, setClaveAdmin] = useState("");
+  const [mostrarClaveAdmin, setMostrarClaveAdmin] = useState(false);
   const [errorAdmin, setErrorAdmin] = useState("");
   const [cargandoAdmin, setCargandoAdmin] = useState(false);
 
@@ -68,7 +80,6 @@ export default function PaginaIniciarSesion() {
 
     setCargandoAdmin(true);
     try {
-      // Prueba la clave contra GET /admin/canjes
       await validarYListarCanjesAdmin(claveAdmin.trim());
       await guardarClaveAdminEnSesion(claveAdmin.trim());
       router.replace("./admin");
@@ -96,6 +107,7 @@ export default function PaginaIniciarSesion() {
             onChangeText={setDni}
             keyboardType="numeric"
             placeholder="Ingrese DNI"
+            placeholderTextColor="#7a8c7a"
           />
         </View>
 
@@ -125,6 +137,7 @@ export default function PaginaIniciarSesion() {
           <TouchableOpacity
             onPress={() => {
               setModoAdmin(!modoAdmin);
+              setMostrarClaveAdmin(false);
               setErrorAdmin("");
             }}
           >
@@ -136,15 +149,30 @@ export default function PaginaIniciarSesion() {
           {modoAdmin && (
             <View style={styles.cajaAdmin}>
               <Text style={styles.label}>Clave de administrador</Text>
-              <TextInput
-                style={styles.input}
-                value={claveAdmin}
-                onChangeText={setClaveAdmin}
-                secureTextEntry
-                autoCapitalize="none"
-                placeholder="Ingresá la clave"
-              />
+              <View style={styles.inputConIcono}>
+                <TextInput
+                  style={styles.inputPassword}
+                  value={claveAdmin}
+                  onChangeText={setClaveAdmin}
+                  secureTextEntry={!mostrarClaveAdmin}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  placeholder="Ingresá la clave"
+                  placeholderTextColor="#7a8c7a"
+                />
+                <TouchableOpacity
+                  style={styles.botonOjito}
+                  onPress={() => setMostrarClaveAdmin(!mostrarClaveAdmin)}
+                  accessibilityLabel={
+                    mostrarClaveAdmin ? "Ocultar clave" : "Mostrar clave"
+                  }
+                >
+                  <IconoOjito visible={mostrarClaveAdmin} />
+                </TouchableOpacity>
+              </View>
+
               {errorAdmin ? <Text style={styles.error}>{errorAdmin}</Text> : null}
+
               <TouchableOpacity
                 style={[styles.botonSecundario, cargandoAdmin && styles.botonDeshabilitado]}
                 onPress={handleIngresarAdmin}
@@ -178,11 +206,60 @@ const styles = StyleSheet.create({
   label: { fontSize: 14, fontWeight: "600", color: "#1b2a1b", marginBottom: 6 },
   input: {
     backgroundColor: "#fff",
+    color: "#1b2a1b",
     padding: 12,
     fontSize: 16,
     borderWidth: 1,
     borderColor: "#9bb59b",
     borderRadius: 8,
+  },
+  inputConIcono: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#9bb59b",
+    borderRadius: 8,
+  },
+  inputPassword: {
+    flex: 1,
+    color: "#1b2a1b",
+    padding: 12,
+    fontSize: 16,
+  },
+  botonOjito: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  iconoOjoContenedor: {
+    width: 24,
+    height: 18,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  iconoOjoContorno: {
+    width: 22,
+    height: 13,
+    borderRadius: 11,
+    borderWidth: 1.8,
+    borderColor: "#555666",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  iconoOjoPupila: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#555666",
+  },
+  iconoOjoTachado: {
+    position: "absolute",
+    width: 24,
+    height: 2,
+    backgroundColor: "#555666",
+    transform: [{ rotate: "-32deg" }],
   },
   botonPrincipal: {
     backgroundColor: "#2e7d32",

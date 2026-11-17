@@ -1,7 +1,6 @@
 import { URL_SERVIDOR_PYTHON } from "@/lib/api";
 import { lanzarErrorDelServidor } from "@/lib/respuestas";
 import type { Canje, DetalleCanje, Premio } from "@/lib/tiposCanje";
-import { fetch as expoFetch } from "expo/fetch";
 
 export type ProductoTacho = {
   id: string;
@@ -108,7 +107,8 @@ export async function listarTodosLosPremiosAdmin(claveAdmin: string): Promise<Pr
   return await respuesta.json();
 }
 
-export function crearPremioAdmin(
+function enviarFormularioPremio(
+  url: string,
   claveAdmin: string,
   datos: {
     codigo: string;
@@ -117,6 +117,7 @@ export function crearPremioAdmin(
     puntos: number;
     disponible: boolean;
     fotoUri?: string | null;
+    quitarFoto?: boolean;
   }
 ): Promise<Premio> {
   return new Promise((resolve, reject) => {
@@ -126,6 +127,9 @@ export function crearPremioAdmin(
     formData.append("descripcion", datos.descripcion);
     formData.append("puntos", String(datos.puntos));
     formData.append("disponible", datos.disponible ? "true" : "false");
+    if (datos.quitarFoto) {
+      formData.append("quitar_foto", "true");
+    }
 
     if (datos.fotoUri) {
       const nombreArchivo = datos.fotoUri.split("/").pop() || "premio.jpg";
@@ -140,7 +144,7 @@ export function crearPremioAdmin(
     }
 
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", `${URL_SERVIDOR_PYTHON}/admin/premios`);
+    xhr.open("POST", url);
     xhr.setRequestHeader("X-Admin-Clave", claveAdmin);
 
     xhr.onload = () => {
@@ -162,6 +166,40 @@ export function crearPremioAdmin(
 
     xhr.send(formData);
   });
+}
+
+export function crearPremioAdmin(
+  claveAdmin: string,
+  datos: {
+    codigo: string;
+    nombre_producto: string;
+    descripcion: string;
+    puntos: number;
+    disponible: boolean;
+    fotoUri?: string | null;
+  }
+): Promise<Premio> {
+  return enviarFormularioPremio(`${URL_SERVIDOR_PYTHON}/admin/premios`, claveAdmin, datos);
+}
+
+export function editarPremioAdmin(
+  claveAdmin: string,
+  idPremio: string,
+  datos: {
+    codigo: string;
+    nombre_producto: string;
+    descripcion: string;
+    puntos: number;
+    disponible: boolean;
+    fotoUri?: string | null;
+    quitarFoto?: boolean;
+  }
+): Promise<Premio> {
+  return enviarFormularioPremio(
+    `${URL_SERVIDOR_PYTHON}/admin/premios/${idPremio}/editar`,
+    claveAdmin,
+    datos
+  );
 }
 
 export async function cambiarDisponibilidadPremioAdmin(

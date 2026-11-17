@@ -46,8 +46,9 @@ def consultar_usuario():
         "nombre": usuario.get("nombre", ""),
         "apellido": usuario.get("apellido", ""),
         "puntos": usuario.get("puntos", 0),
-        "created": usuario.get("created", ""), # Fecha de registro del usuario
-        "updated": usuario.get("updated") or usuario.get("created", ""),    }), HTTPStatus.OK
+        "created": usuario.get("created", ""),
+        "updated": usuario.get("updated") or usuario.get("created", ""),
+    }), HTTPStatus.OK
 
 @app.post("/usuario")
 def registrar_usuario():
@@ -65,7 +66,6 @@ def registrar_usuario():
 
     usuario = usuarios.crear(dni, nombre, apellido)
 
-    # USAR .get() SEGURO PARA EVITAR KeyError EN updated O CUALQUIER CAMPO
     return jsonify({
         "id": usuario.get("id", ""),
         "dni": usuario.get("dni", ""),
@@ -97,7 +97,7 @@ def consultar_producto():
 def reciclar():
     datos = request.get_json(silent=True) or {}
     dni = str(datos.get("dni", ""))
-    codigo_de_barras = str(datos.get("codigo_de_barras") or datos.get("codigo_de_barras", ""))
+    codigo_de_barras = str(datos.get("codigo_de_barras") or datos.get("codigo_barras", ""))
 
     if not (dni.isdigit() and codigo_de_barras.isdigit()):
         return respuesta_error("Faltan datos", HTTPStatus.BAD_REQUEST)
@@ -336,6 +336,48 @@ def admin_crear_premio():
 
     creado = premios.crear(codigo, nombre, descripcion, puntos, disponible, foto)
     return jsonify(premios.como_respuesta(creado, url_base_de_fotos())), HTTPStatus.CREATED
+
+
+@app.post("/admin/premios/<id_premio>/editar")
+def admin_editar_premio_completo(id_premio):
+    if not es_administrador():
+        return respuesta_no_autorizado()
+    if not id_premio.isalnum():
+        return respuesta_error("Premio invalido", HTTPStatus.BAD_REQUEST)
+
+    if request.content_type and "multipart/form-data" in request.content_type:
+        codigo = str(request.form.get("codigo", "")).strip()
+        nombre = str(request.form.get("nombre_producto", "")).strip()
+        descripcion = str(request.form.get("descripcion", "")).strip()
+        puntos = int(request.form.get("puntos") or 0)
+        disponible = request.form.get("disponible", "true").lower() == "true"
+        quitar_foto = request.form.get("quitar_foto", "false").lower() == "true"
+        foto = request.files.get("foto")
+    else:
+        datos = request.get_json(silent=True) or {}
+        codigo = str(datos.get("codigo", "")).strip()
+        nombre = str(datos.get("nombre_producto", "")).strip()
+        descripcion = str(datos.get("descripcion", "")).strip()
+        puntos = int(datos.get("puntos") or 0)
+        disponible = bool(datos.get("disponible", True))
+        quitar_foto = bool(datos.get("quitar_foto", False))
+        foto = None
+
+    if not (codigo and nombre and puntos > 0):
+        return respuesta_error("Completa codigo, nombre y puntos mayores a 0", HTTPStatus.BAD_REQUEST)
+
+    campos = {
+        "codigo": codigo,
+        "nombre_producto": nombre,
+        "descripcion": descripcion,
+        "puntos": puntos,
+        "disponible": disponible,
+    }
+    if quitar_foto and foto is None:
+        campos["foto"] = ""
+
+    actualizado = premios.actualizar(id_premio, campos, foto)
+    return jsonify(premios.como_respuesta(actualizado, url_base_de_fotos())), HTTPStatus.OK
 
 
 @app.patch("/admin/premios/<id_premio>")

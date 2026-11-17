@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -24,6 +24,7 @@ import {
   consultarDetalleCanjeAdmin,
   crearPremioAdmin,
   crearProductoAdmin,
+  editarPremioAdmin,
   eliminarPremioAdmin,
   eliminarProductoAdmin,
   listarProductosAdmin,
@@ -35,10 +36,14 @@ import { formatearFechaCompleta } from "@/lib/fechas";
 import type { Canje, DetalleCanje, Premio } from "@/lib/tiposCanje";
 
 type Pestana = "canjes" | "productos" | "premios";
+type ReferenciaScroll = React.ComponentRef<typeof ScrollView>;
 
 export default function PaginaAdmin() {
   const router = useRouter();
   const [permisoCamara, pedirPermisoCamara] = useCameraPermissions();
+
+  const scrollProductosRef = useRef<ReferenciaScroll>(null);
+  const scrollPremiosRef = useRef<ReferenciaScroll>(null);
 
   const [claveAdmin, setClaveAdmin] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
@@ -63,12 +68,15 @@ export default function PaginaAdmin() {
 
   // --- Estados Premios Canjeables ---
   const [premiosKiosco, setPremiosKiosco] = useState<Premio[]>([]);
+  const [premioEditando, setPremioEditando] = useState<Premio | null>(null);
   const [codigoPremio, setCodigoPremio] = useState("");
   const [nombrePremio, setNombrePremio] = useState("");
   const [descPremio, setDescPremio] = useState("");
   const [puntosPremio, setPuntosPremio] = useState("");
   const [disponiblePremio, setDisponiblePremio] = useState(true);
   const [fotoPremioUri, setFotoPremioUri] = useState<string | null>(null);
+  const [fotoExistenteUrl, setFotoExistenteUrl] = useState<string | null>(null);
+  const [quitarFotoActual, setQuitarFotoActual] = useState(false);
 
   async function cargarTodo(clave: string) {
     try {
@@ -159,6 +167,7 @@ export default function PaginaAdmin() {
     setTamanoMl(prod.tamano_ml ? String(prod.tamano_ml) : "");
     setPuntosProd(String(prod.puntos));
     setEsReciclable(prod.es_reciclable);
+    scrollProductosRef.current?.scrollTo({ y: 0, animated: true });
   }
 
   async function handleGuardarProducto() {
@@ -225,6 +234,31 @@ export default function PaginaAdmin() {
   }
 
   // --- Handlers Premios ---
+  function limpiarFormPremio() {
+    setPremioEditando(null);
+    setCodigoPremio("");
+    setNombrePremio("");
+    setDescPremio("");
+    setPuntosPremio("");
+    setDisponiblePremio(true);
+    setFotoPremioUri(null);
+    setFotoExistenteUrl(null);
+    setQuitarFotoActual(false);
+  }
+
+  function seleccionarPremioParaEditar(premio: Premio) {
+    setPremioEditando(premio);
+    setCodigoPremio(premio.codigo);
+    setNombrePremio(premio.nombre);
+    setDescPremio(premio.descripcion || "");
+    setPuntosPremio(String(premio.puntos));
+    setDisponiblePremio(premio.disponible);
+    setFotoPremioUri(null);
+    setFotoExistenteUrl(premio.foto_url || null);
+    setQuitarFotoActual(false);
+    scrollPremiosRef.current?.scrollTo({ y: 0, animated: true });
+  }
+
   async function handleSacarFotoPremio() {
     const permiso = await ImagePicker.requestCameraPermissionsAsync();
     if (!permiso.granted) {
@@ -241,6 +275,7 @@ export default function PaginaAdmin() {
 
     if (!resultado.canceled && resultado.assets[0]) {
       setFotoPremioUri(resultado.assets[0].uri);
+      setQuitarFotoActual(false);
     }
   }
 
@@ -260,10 +295,11 @@ export default function PaginaAdmin() {
 
     if (!resultado.canceled && resultado.assets[0]) {
       setFotoPremioUri(resultado.assets[0].uri);
+      setQuitarFotoActual(false);
     }
   }
 
-  async function handleCrearPremio() {
+  async function handleGuardarPremio() {
     if (!claveAdmin) return;
     const puntosNum = parseInt(puntosPremio || "0", 10);
     if (!codigoPremio.trim() || !nombrePremio.trim() || isNaN(puntosNum) || puntosNum <= 0) {
@@ -273,24 +309,32 @@ export default function PaginaAdmin() {
 
     setProcesando(true);
     try {
-      await crearPremioAdmin(claveAdmin, {
-        codigo: codigoPremio.trim(),
-        nombre_producto: nombrePremio.trim(),
-        descripcion: descPremio.trim(),
-        puntos: puntosNum,
-        disponible: disponiblePremio,
-        fotoUri: fotoPremioUri,
-      });
-      Alert.alert("Premio creado", "Ya aparece en el catálogo de canje.");
-      setCodigoPremio("");
-      setNombrePremio("");
-      setDescPremio("");
-      setPuntosPremio("");
-      setDisponiblePremio(true);
-      setFotoPremioUri(null);
+      if (premioEditando) {
+        await editarPremioAdmin(claveAdmin, premioEditando.id, {
+          codigo: codigoPremio.trim(),
+          nombre_producto: nombrePremio.trim(),
+          descripcion: descPremio.trim(),
+          puntos: puntosNum,
+          disponible: disponiblePremio,
+          fotoUri: fotoPremioUri,
+          quitarFoto: quitarFotoActual,
+        });
+        Alert.alert("Actualizado", "Premio modificado correctamente.");
+      } else {
+        await crearPremioAdmin(claveAdmin, {
+          codigo: codigoPremio.trim(),
+          nombre_producto: nombrePremio.trim(),
+          descripcion: descPremio.trim(),
+          puntos: puntosNum,
+          disponible: disponiblePremio,
+          fotoUri: fotoPremioUri,
+        });
+        Alert.alert("Premio creado", "Ya aparece en el catálogo de canje.");
+      }
+      limpiarFormPremio();
       await cargarTodo(claveAdmin);
     } catch (error) {
-      Alert.alert("Error", error instanceof Error ? error.message : "No se pudo crear el premio");
+      Alert.alert("Error", error instanceof Error ? error.message : "No se pudo guardar el premio");
     } finally {
       setProcesando(false);
     }
@@ -316,6 +360,7 @@ export default function PaginaAdmin() {
           if (!claveAdmin) return;
           try {
             await eliminarPremioAdmin(claveAdmin, premio.id);
+            if (premioEditando?.id === premio.id) limpiarFormPremio();
             await cargarTodo(claveAdmin);
           } catch (e) {
             Alert.alert("Error", e instanceof Error ? e.message : "No se pudo borrar");
@@ -337,6 +382,9 @@ export default function PaginaAdmin() {
       </View>
     );
   }
+
+  const imagenMostradaPremio =
+    fotoPremioUri || (!quitarFotoActual ? fotoExistenteUrl : null);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -466,7 +514,7 @@ export default function PaginaAdmin() {
 
         {/* ================= PESTAÑA 2: PRODUCTOS DEL TACHO ================= */}
         {pestana === "productos" && (
-          <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
+          <ScrollView ref={scrollProductosRef} contentContainerStyle={{ paddingBottom: 32 }}>
             <View style={styles.formulario}>
               <Text style={styles.subtitulo}>
                 {productoEditando ? "Editar envase del tacho" : "Registrar envase del tacho"}
@@ -571,7 +619,10 @@ export default function PaginaAdmin() {
             {productosTacho.map((prod) => (
               <TouchableOpacity
                 key={prod.id}
-                style={styles.tarjetaItem}
+                style={[
+                  styles.tarjetaItem,
+                  productoEditando?.id === prod.id && styles.tarjetaItemSeleccionada,
+                ]}
                 onPress={() => seleccionarProductoParaEditar(prod)}
               >
                 <View style={{ flex: 1, paddingRight: 8 }}>
@@ -599,9 +650,11 @@ export default function PaginaAdmin() {
 
         {/* ================= PESTAÑA 3: PREMIOS CANJEABLES ================= */}
         {pestana === "premios" && (
-          <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
+          <ScrollView ref={scrollPremiosRef} contentContainerStyle={{ paddingBottom: 32 }}>
             <View style={styles.formulario}>
-              <Text style={styles.subtitulo}>Nuevo premio del kiosco</Text>
+              <Text style={styles.subtitulo}>
+                {premioEditando ? "Editar premio del kiosco" : "Nuevo premio del kiosco"}
+              </Text>
 
               <View style={styles.filaDosColumnas}>
                 <TextInput
@@ -655,14 +708,19 @@ export default function PaginaAdmin() {
                 </TouchableOpacity>
               </View>
 
-              {fotoPremioUri && (
+              {imagenMostradaPremio && (
                 <View style={styles.contenedorPrevia}>
                   <Image
-                    source={{ uri: fotoPremioUri }}
+                    source={{ uri: imagenMostradaPremio }}
                     style={styles.vistaPreviaFoto}
                     resizeMode="contain"
                   />
-                  <TouchableOpacity onPress={() => setFotoPremioUri(null)}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setFotoPremioUri(null);
+                      setQuitarFotoActual(true);
+                    }}
+                  >
                     <Text style={styles.textoQuitarFoto}>✕ Quitar foto</Text>
                   </TouchableOpacity>
                 </View>
@@ -679,16 +737,31 @@ export default function PaginaAdmin() {
 
               <TouchableOpacity
                 style={[styles.botonPrincipal, procesando && styles.deshabilitado]}
-                onPress={handleCrearPremio}
+                onPress={handleGuardarPremio}
                 disabled={procesando}
               >
-                <Text style={styles.textoBotonPrincipal}>Sumar premio</Text>
+                <Text style={styles.textoBotonPrincipal}>
+                  {premioEditando ? "Guardar cambios" : "Sumar premio"}
+                </Text>
               </TouchableOpacity>
+
+              {premioEditando && (
+                <TouchableOpacity style={styles.botonCancelar} onPress={limpiarFormPremio}>
+                  <Text style={styles.textoCancelar}>Cancelar edición</Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             <Text style={styles.subtitulo}>Catálogo de premios ({premiosKiosco.length})</Text>
             {premiosKiosco.map((premio) => (
-              <View key={premio.id} style={styles.tarjetaItem}>
+              <TouchableOpacity
+                key={premio.id}
+                style={[
+                  styles.tarjetaItem,
+                  premioEditando?.id === premio.id && styles.tarjetaItemSeleccionada,
+                ]}
+                onPress={() => seleccionarPremioParaEditar(premio)}
+              >
                 <View style={{ flex: 1, paddingRight: 8 }}>
                   <Text style={styles.itemTitulo}>{premio.nombre}</Text>
                   <Text style={styles.itemSub}>
@@ -722,7 +795,7 @@ export default function PaginaAdmin() {
                     <Text style={styles.textoBotonBorrar}>Borrar</Text>
                   </TouchableOpacity>
                 </View>
-              </View>
+              </TouchableOpacity>
             ))}
           </ScrollView>
         )}
@@ -882,6 +955,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     borderLeftWidth: 3,
     borderLeftColor: "#2e7d32",
+  },
+  tarjetaItemSeleccionada: {
+    backgroundColor: "#e8f5e9",
   },
   itemTitulo: { fontSize: 15, fontWeight: "700", color: "#2e7d32" },
   itemSub: { fontSize: 12, color: "#555666", marginTop: 2 },

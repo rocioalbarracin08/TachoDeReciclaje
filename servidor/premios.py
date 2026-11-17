@@ -57,13 +57,26 @@ def crear(codigo: str, nombre_producto: str, descripcion: str, puntos: int, disp
     return respuesta.json()
 
 
-def actualizar(id_premio: str, campos: dict) -> dict:
-    respuesta = requests.patch(
-        f"{URL_PREMIOS}/{id_premio}",
-        json=campos,
-        headers=pocketbase.encabezados_admin(),
-        timeout=pocketbase.TIEMPO_MAXIMO_SEG,
-    )
+def actualizar(id_premio: str, campos: dict, archivo_foto=None) -> dict:
+    if archivo_foto is not None:
+        datos = {k: ("true" if v else "false") if isinstance(v, bool) else str(v) for k, v in campos.items()}
+        archivos = {
+            "foto": (archivo_foto.filename or "premio.jpg", archivo_foto.stream, archivo_foto.mimetype or "image/jpeg")
+        }
+        respuesta = requests.patch(
+            f"{URL_PREMIOS}/{id_premio}",
+            data=datos,
+            files=archivos,
+            headers=pocketbase.encabezados_admin(),
+            timeout=15,
+        )
+    else:
+        respuesta = requests.patch(
+            f"{URL_PREMIOS}/{id_premio}",
+            json=campos,
+            headers=pocketbase.encabezados_admin(),
+            timeout=pocketbase.TIEMPO_MAXIMO_SEG,
+        )
     respuesta.raise_for_status()
     return respuesta.json()
 
