@@ -2,7 +2,7 @@ import os
 from http import HTTPStatus
 import requests
 from flask import Flask, jsonify, request
-import productos, reciclajes, usuarios
+import canjes, premios, productos, reciclajes, usuarios
 
 CLAVE_ADMIN = os.environ.get("CLAVE_ADMIN", "")
 HOST = os.environ.get("HOST", "0.0.0.0")
@@ -116,6 +116,122 @@ def reciclar():
     puntos_sumados, usuario_actualizado = reciclajes.registrar(usuario, producto)
     return respuesta_reciclaje(usuario_actualizado, producto, puntos_sumados)
 
+# ENDPOINTS DE CANJE DE PUNTOS POR PREMIOS DEL KIOSCO
+def url_base_de_fotos():
+    url_publica = os.environ.get("POCKETBASE_URL_PUBLICA", "")
+    if url_publica:
+        return url_publica
+    direccion_que_uso_el_celular = request.host.split(":")[0]
+    return f"http://{direccion_que_uso_el_celular}:8090"
+
+def respuesta_no_autorizado():
+    return respuesta_error("No autorizado", HTTPStatus.UNAUTHORIZED)
+
+@app.get("/premios")
+def listar_premios():
+    solo_disponibles = not es_administrador()
+    lista = premios.listar(solo_disponibles)
+    url_base = url_base_de_fotos()
+    return jsonify([premios.como_respuesta(p, url_base) for p in lista]), HTTPStatus.OK
+
+@app.post("/canjes")
+def solicitar_canje():
+    datos = request.get_json(silent=True) or {}
+    dni = str(datos.get("dni", ""))
+    id_premio = str(datos.get("id_premio", ""))
+
+    if not (dni.isdigit() and id_premio.isalnum()):
+        return respuesta_error("Faltan datos", HTTPStatus.BAD_REQUEST)
+
+    usuario = usuarios.buscar_por_dni(dni)
+    if usuario is None:
+        return respuesta_error("Usuario no registrado", HTTPStatus.NOT_FOUND)
+
+    premio = premios.buscar_por_id(id_premio)
+    if premio is None:
+        return respuesta_error("Premio no encontrado", HTTPStatus.NOT_FOUND)
+
+    if not premio.get("disponible"):
+        return respuesta_error("Premio no disponible", HTTPStatus.UNPROCESSABLE_ENTITY)
+
+    if (usuario.get("puntos") or 0) < premio.get("puntos", 0):
+        return respuesta_error("No te alcanzan los puntos", HTTPStatus.UNPROCESSABLE_ENTITY)
+
+    canje = canjes.crear_pendiente(usuario, premio)
+    return jsonify({
+        "id_canje": canje["id"],
+        "minutos_validez": canjes.MINUTOS_VALIDEZ_DEL_QR,
+    }), HTTPStatus.CREATED
+
+@app.get("/canjes")
+def historial_de_canjes():
+    dni = request.args.get("dni", "")
+    if not dni.isdigit():
+        return respuesta_error("DNI invalido", HTTPStatus.BAD_REQUEST)
+
+    usuario = usuarios.buscar_por_dni(dni)
+    if usuario is None:
+        return respuesta_error("Usuario no registrado", HTTPStatus.NOT_FOUND)
+
+    lista = canjes.listar_confirmados_del_usuario(usuario["id"])
+    return jsonify([canjes.como_respuesta(c) for c in lista]), HTTPStatus.OK
+
+@app.get("/admin/canjes")
+def ultimos_canjes_confirmados():
+    if not es_administrador():
+        return respuesta_no_autorizado()
+
+    lista = canjes.listar_ultimos_confirmados()
+    return jsonify([canjes.como_respuesta(c) for c in lista]), HTTPStatus.OK
+
+@app.get("/admin/canjes/<id_canje>")
+def consultar_canje(id_canje):
+    if not es_administrador():
+        return respuesta_no_autorizado()
+    if not id_canje.isalnum():
+        return respuesta_error("Canje invalido", HTTPStatus.BAD_REQUEST)
+
+    canje = canjes.buscar_por_id(id_canje)
+    if canje is None:
+        return respuesta_error("Canje no encontrado", HTTPStatus.NOT_FOUND)
+
+    cuerpo = canjes.como_respuesta(canje)
+    cuerpo["confirmado"] = canje.get("confirmado", False)
+    cuerpo["vencido"] = canjes.esta_vencido(canje)
+    cuerpo["puntos_del_usuario"] = canje["expand"]["usuario"].get("puntos") or 0
+    return jsonify(cuerpo), HTTPStatus.OK
+
+@app.post("/admin/canjes/<id_canje>/confirmar")
+def confirmar_canje(id_canje):
+    if not es_administrador():
+        return respuesta_no_autorizado()
+    if not id_canje.isalnum():
+        return respuesta_error("Canje invalido", HTTPStatus.BAD_REQUEST)
+
+    canje = canjes.buscar_por_id(id_canje)
+    if canje is None:
+        return respuesta_error("Canje no encontrado", HTTPStatus.NOT_FOUND)
+
+    if canje.get("confirmado"):
+        return respuesta_error("El canje ya fue confirmado", HTTPStatus.CONFLICT)
+
+    if canjes.esta_vencido(canje):
+        return respuesta_error("El QR vencio, que genere otro", HTTPStatus.GONE)
+
+    usuario = canje["expand"]["usuario"]
+    premio = canje["expand"]["premio"]
+
+    if not premio.get("disponible"):
+        return respuesta_error("Premio no disponible", HTTPStatus.UNPROCESSABLE_ENTITY)
+
+    if (usuario.get("puntos") or 0) < canje["puntos"]:
+        return respuesta_error("No le alcanzan los puntos", HTTPStatus.UNPROCESSABLE_ENTITY)
+
+    usuario_actualizado = canjes.confirmar(canje)
+    return jsonify({
+        "mensaje": f"Canje confirmado: {premio.get('nombre_producto', '')}",
+        "puntos_restantes": usuario_actualizado.get("puntos", 0),
+    }), HTTPStatus.OK
 
 # ENDPOINTS PARA 2DO RELEASE (INACTIVOS)
 """

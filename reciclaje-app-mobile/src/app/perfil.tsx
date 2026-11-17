@@ -9,9 +9,9 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { obtenerDniDeSesion, borrarSesion } from "@/lib/sesion";
-import { buscarUsuarioPorDni } from "@/lib/usuarios";
+import { buscarUsuarioPorDni } from "../lib/usuarios";
 import { describirTiempoTranscurrido, formatearFechaCompleta } from "@/lib/fechas";
-import type { Usuario } from "@/lib/tipos";
+import type { Usuario } from "../lib/tipos";
 
 export default function PaginaPerfil() {
   const router = useRouter();
@@ -86,9 +86,21 @@ export default function PaginaPerfil() {
           </View>
         </View>
 
+        <TouchableOpacity style={styles.botonPrincipal} onPress={() => router.push("./canjear")}>
+          <Text style={styles.textoBotonPrincipal}>Canjear puntos</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.botonSecundario, styles.separacionEntreBotones]}
+          onPress={() => router.push("./historial")}
+        >
+          <Text style={styles.textoBotonSecundario}>Historial de canjes</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity style={styles.botonSecundario} onPress={handleCerrarSesion}>
           <Text style={styles.textoBotonSecundario}>Cerrar sesión</Text>
         </TouchableOpacity>
+
       </View>
     </SafeAreaView>
   );
@@ -122,4 +134,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   textoBotonSecundario: { color: "#2e7d32", fontSize: 16, fontWeight: "bold" },
+    botonPrincipal: {
+    backgroundColor: "#2e7d32",
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  textoBotonPrincipal: { color: "#fff", fontSize: 16, fontWeight: "bold" },
+  separacionEntreBotones: { marginBottom: 12 },
 });

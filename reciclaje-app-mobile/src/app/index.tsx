@@ -12,7 +12,8 @@ import { useRouter } from "expo-router";
 import { EscanerDni } from "@/components/EscanerDni";
 import { extraerDatosDeCodigoPdf417 } from "@/lib/dni";
 import { buscarUsuarioPorDni } from "@/lib/usuarios";
-import { guardarDniEnSesion } from "@/lib/sesion";
+import { guardarDniEnSesion, guardarClaveAdminEnSesion } from "@/lib/sesion";
+import { validarYListarCanjesAdmin } from "@/lib/admin";
 
 export default function PaginaIniciarSesion() {
   const router = useRouter();
@@ -20,6 +21,12 @@ export default function PaginaIniciarSesion() {
   const [error, setError] = useState("");
   const [avisoDeEscaneo, setAvisoDeEscaneo] = useState("");
   const [cargando, setCargando] = useState(false);
+
+  // Estados para ingreso de Admin
+  const [modoAdmin, setModoAdmin] = useState(false);
+  const [claveAdmin, setClaveAdmin] = useState("");
+  const [errorAdmin, setErrorAdmin] = useState("");
+  const [cargandoAdmin, setCargandoAdmin] = useState(false);
 
   function completarDniDesdeCodigo(textoDelCodigo: string) {
     const datos = extraerDatosDeCodigoPdf417(textoDelCodigo);
@@ -49,6 +56,27 @@ export default function PaginaIniciarSesion() {
       setError("Error de conexión al servidor");
     } finally {
       setCargando(false);
+    }
+  }
+
+  async function handleIngresarAdmin() {
+    setErrorAdmin("");
+    if (!claveAdmin.trim()) {
+      setErrorAdmin("Ingresá la clave de administrador");
+      return;
+    }
+
+    setCargandoAdmin(true);
+    try {
+      // Prueba la clave contra GET /admin/canjes
+      await validarYListarCanjesAdmin(claveAdmin.trim());
+      await guardarClaveAdminEnSesion(claveAdmin.trim());
+      router.replace("./admin");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Error de conexión";
+      setErrorAdmin(msg === "No autorizado" ? "Clave incorrecta" : msg);
+    } finally {
+      setCargandoAdmin(false);
     }
   }
 
@@ -91,6 +119,44 @@ export default function PaginaIniciarSesion() {
             ¿Primera vez? <Text style={styles.linkBold}>Registrate</Text>
           </Text>
         </TouchableOpacity>
+
+        {/* --- SECCIÓN ACCESO ADMIN --- */}
+        <View style={styles.separadorAdmin}>
+          <TouchableOpacity
+            onPress={() => {
+              setModoAdmin(!modoAdmin);
+              setErrorAdmin("");
+            }}
+          >
+            <Text style={styles.textoLinkAdmin}>
+              {modoAdmin ? "Ocultar acceso administrador" : "Soy administrador / Kiosco"}
+            </Text>
+          </TouchableOpacity>
+
+          {modoAdmin && (
+            <View style={styles.cajaAdmin}>
+              <Text style={styles.label}>Clave de administrador</Text>
+              <TextInput
+                style={styles.input}
+                value={claveAdmin}
+                onChangeText={setClaveAdmin}
+                secureTextEntry
+                autoCapitalize="none"
+                placeholder="Ingresá la clave"
+              />
+              {errorAdmin ? <Text style={styles.error}>{errorAdmin}</Text> : null}
+              <TouchableOpacity
+                style={[styles.botonSecundario, cargandoAdmin && styles.botonDeshabilitado]}
+                onPress={handleIngresarAdmin}
+                disabled={cargandoAdmin}
+              >
+                <Text style={styles.textoBotonSecundario}>
+                  {cargandoAdmin ? "Verificando..." : "Entrar al panel"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -98,15 +164,15 @@ export default function PaginaIniciarSesion() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: "#f2f7f2" },
-  container: { 
-      flexGrow: 1,                // Permite expandirse a lo largo de toda la pantalla
-      justifyContent: "center",    // Centra el contenido verticalmente en la pantalla
-      paddingHorizontal: 24, 
-      paddingVertical: 32,         // Da aire arriba y abajo para que no choque la status bar / notch
-      maxWidth: 420, 
-      alignSelf: "center", 
-      width: "100%" 
-    },
+  container: {
+    flexGrow: 1,
+    justifyContent: "center",
+    paddingHorizontal: 24,
+    paddingVertical: 32,
+    maxWidth: 420,
+    alignSelf: "center",
+    width: "100%",
+  },
   titulo: { fontSize: 28, fontWeight: "bold", color: "#1b2a1b", marginBottom: 16 },
   campo: { marginBottom: 16 },
   label: { fontSize: 14, fontWeight: "600", color: "#1b2a1b", marginBottom: 6 },
@@ -127,8 +193,27 @@ const styles = StyleSheet.create({
   },
   botonDeshabilitado: { opacity: 0.6 },
   textoBotonPrincipal: { color: "#fff", fontSize: 16, fontWeight: "bold" },
-  error: { color: "#b00020", marginBottom: 12 },
+  error: { color: "#b00020", marginTop: 6, marginBottom: 8 },
   linkWrapper: { marginTop: 20, alignItems: "center" },
   textoLink: { color: "#1b2a1b", fontSize: 15 },
   linkBold: { color: "#2e7d32", fontWeight: "bold" },
+  separadorAdmin: {
+    marginTop: 32,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#d5e2d5",
+    alignItems: "center",
+  },
+  textoLinkAdmin: { color: "#555666", fontSize: 13, fontWeight: "600" },
+  cajaAdmin: { width: "100%", marginTop: 14 },
+  botonSecundario: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#2e7d32",
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: "center",
+    marginTop: 10,
+  },
+  textoBotonSecundario: { color: "#2e7d32", fontSize: 15, fontWeight: "bold" },
 });
