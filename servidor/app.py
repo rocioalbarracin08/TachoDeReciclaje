@@ -2,7 +2,7 @@ import os
 from http import HTTPStatus
 import requests
 from flask import Flask, jsonify, request
-import productos, reciclajes, usuarios
+import canjes, premios, productos, reciclajes, usuarios
 
 CLAVE_ADMIN = os.environ.get("CLAVE_ADMIN", "")
 HOST = os.environ.get("HOST", "0.0.0.0")
@@ -115,6 +115,260 @@ def reciclar():
 
     puntos_sumados, usuario_actualizado = reciclajes.registrar(usuario, producto)
     return respuesta_reciclaje(usuario_actualizado, producto, puntos_sumados)
+
+# ENDPOINTS DE CANJE DE PUNTOS POR PREMIOS DEL KIOSCO
+def url_base_de_fotos():
+    url_publica = os.environ.get("POCKETBASE_URL_PUBLICA", "")
+    if url_publica:
+        return url_publica
+    direccion_que_uso_el_celular = request.host.split(":")[0]
+    return f"http://{direccion_que_uso_el_celular}:8090"
+
+def respuesta_no_autorizado():
+    return respuesta_error("No autorizado", HTTPStatus.UNAUTHORIZED)
+
+@app.get("/premios")
+def listar_premios():
+    solo_disponibles = not es_administrador()
+    lista = premios.listar(solo_disponibles)
+    url_base = url_base_de_fotos()
+    return jsonify([premios.como_respuesta(p, url_base) for p in lista]), HTTPStatus.OK
+
+@app.post("/canjes")
+def solicitar_canje():
+    datos = request.get_json(silent=True) or {}
+    dni = str(datos.get("dni", ""))
+    id_premio = str(datos.get("id_premio", ""))
+
+    if not (dni.isdigit() and id_premio.isalnum()):
+        return respuesta_error("Faltan datos", HTTPStatus.BAD_REQUEST)
+
+    usuario = usuarios.buscar_por_dni(dni)
+    if usuario is None:
+        return respuesta_error("Usuario no registrado", HTTPStatus.NOT_FOUND)
+
+    premio = premios.buscar_por_id(id_premio)
+    if premio is None:
+        return respuesta_error("Premio no encontrado", HTTPStatus.NOT_FOUND)
+
+    if not premio.get("disponible"):
+        return respuesta_error("Premio no disponible", HTTPStatus.UNPROCESSABLE_ENTITY)
+
+    if (usuario.get("puntos") or 0) < premio.get("puntos", 0):
+        return respuesta_error("No te alcanzan los puntos", HTTPStatus.UNPROCESSABLE_ENTITY)
+
+    canje = canjes.crear_pendiente(usuario, premio)
+    return jsonify({
+        "id_canje": canje["id"],
+        "minutos_validez": canjes.MINUTOS_VALIDEZ_DEL_QR,
+    }), HTTPStatus.CREATED
+
+@app.get("/canjes")
+def historial_de_canjes():
+    dni = request.args.get("dni", "")
+    if not dni.isdigit():
+        return respuesta_error("DNI invalido", HTTPStatus.BAD_REQUEST)
+
+    usuario = usuarios.buscar_por_dni(dni)
+    if usuario is None:
+        return respuesta_error("Usuario no registrado", HTTPStatus.NOT_FOUND)
+
+    lista = canjes.listar_confirmados_del_usuario(usuario["id"])
+    return jsonify([canjes.como_respuesta(c) for c in lista]), HTTPStatus.OK
+
+@app.get("/admin/canjes")
+def ultimos_canjes_confirmados():
+    if not es_administrador():
+        return respuesta_no_autorizado()
+
+    lista = canjes.listar_ultimos_confirmados()
+    return jsonify([canjes.como_respuesta(c) for c in lista]), HTTPStatus.OK
+
+@app.get("/admin/canjes/<id_canje>")
+def consultar_canje(id_canje):
+    if not es_administrador():
+        return respuesta_no_autorizado()
+    if not id_canje.isalnum():
+        return respuesta_error("Canje invalido", HTTPStatus.BAD_REQUEST)
+
+    canje = canjes.buscar_por_id(id_canje)
+    if canje is None:
+        return respuesta_error("Canje no encontrado", HTTPStatus.NOT_FOUND)
+
+    cuerpo = canjes.como_respuesta(canje)
+    cuerpo["confirmado"] = canje.get("confirmado", False)
+    cuerpo["vencido"] = canjes.esta_vencido(canje)
+    cuerpo["puntos_del_usuario"] = canje["expand"]["usuario"].get("puntos") or 0
+    return jsonify(cuerpo), HTTPStatus.OK
+
+@app.post("/admin/canjes/<id_canje>/confirmar")
+def confirmar_canje(id_canje):
+    if not es_administrador():
+        return respuesta_no_autorizado()
+    if not id_canje.isalnum():
+        return respuesta_error("Canje invalido", HTTPStatus.BAD_REQUEST)
+
+    canje = canjes.buscar_por_id(id_canje)
+    if canje is None:
+        return respuesta_error("Canje no encontrado", HTTPStatus.NOT_FOUND)
+
+    if canje.get("confirmado"):
+        return respuesta_error("El canje ya fue confirmado", HTTPStatus.CONFLICT)
+
+    if canjes.esta_vencido(canje):
+        return respuesta_error("El QR vencio, que genere otro", HTTPStatus.GONE)
+
+    usuario = canje["expand"]["usuario"]
+    premio = canje["expand"]["premio"]
+
+    if not premio.get("disponible"):
+        return respuesta_error("Premio no disponible", HTTPStatus.UNPROCESSABLE_ENTITY)
+
+    if (usuario.get("puntos") or 0) < canje["puntos"]:
+        return respuesta_error("No le alcanzan los puntos", HTTPStatus.UNPROCESSABLE_ENTITY)
+
+    usuario_actualizado = canjes.confirmar(canje)
+    return jsonify({
+        "mensaje": f"Canje confirmado: {premio.get('nombre_producto', '')}",
+        "puntos_restantes": usuario_actualizado.get("puntos", 0),
+    }), HTTPStatus.OK
+
+# --- ENDPOINTS ADMIN: GESTIÓN DE PRODUCTOS DEL TACHO ---
+@app.get("/admin/productos")
+def admin_listar_productos():
+    if not es_administrador():
+        return respuesta_no_autorizado()
+
+    lista = productos.listar_todos()
+    return jsonify([
+        {
+            "id": p["id"],
+            "codigo_de_barras": p.get("codigo_de_barras", ""),
+            "nombre": p.get("nombre", ""),
+            "tamano_ml": p.get("tamano_ml", 0),
+            "puntos": p.get("puntos", 0),
+            "es_reciclable": p.get("es_reciclable", False),
+        }
+        for p in lista
+    ]), HTTPStatus.OK
+
+
+@app.post("/admin/productos")
+def admin_crear_producto():
+    if not es_administrador():
+        return respuesta_no_autorizado()
+
+    datos = request.get_json(silent=True) or {}
+    codigo = str(datos.get("codigo_de_barras", "")).strip()
+    nombre = str(datos.get("nombre", "")).strip()
+    tamano_ml = int(datos.get("tamano_ml") or 0)
+    puntos = int(datos.get("puntos") or 0)
+    es_reciclable = bool(datos.get("es_reciclable", True))
+
+    if not codigo.isdigit():
+        return respuesta_error("Codigo de barras invalido", HTTPStatus.BAD_REQUEST)
+    if es_reciclable and puntos <= 0:
+        return respuesta_error("Si es reciclable debe valer mas de 0 puntos", HTTPStatus.BAD_REQUEST)
+    if productos.buscar_por_codigo(codigo) is not None:
+        return respuesta_error("Ese codigo de barras ya esta registrado", HTTPStatus.CONFLICT)
+
+    creado = productos.crear(codigo, nombre, tamano_ml, puntos, es_reciclable)
+    return jsonify(creado), HTTPStatus.CREATED
+
+
+@app.patch("/admin/productos/<id_producto>")
+def admin_actualizar_producto(id_producto):
+    if not es_administrador():
+        return respuesta_no_autorizado()
+    if not id_producto.isalnum():
+        return respuesta_error("Producto invalido", HTTPStatus.BAD_REQUEST)
+
+    datos = request.get_json(silent=True) or {}
+    nombre = str(datos.get("nombre", "")).strip()
+    tamano_ml = int(datos.get("tamano_ml") or 0)
+    puntos = int(datos.get("puntos") or 0)
+    es_reciclable = bool(datos.get("es_reciclable", True))
+
+    if not nombre:
+        return respuesta_error("Falta el nombre del producto", HTTPStatus.BAD_REQUEST)
+    if es_reciclable and puntos <= 0:
+        return respuesta_error("Si es reciclable debe valer mas de 0 puntos", HTTPStatus.BAD_REQUEST)
+
+    actualizado = productos.actualizar(id_producto, nombre, tamano_ml, puntos, es_reciclable)
+    return jsonify(actualizado), HTTPStatus.OK
+
+
+@app.delete("/admin/productos/<id_producto>")
+def admin_eliminar_producto(id_producto):
+    if not es_administrador():
+        return respuesta_no_autorizado()
+    if not id_producto.isalnum():
+        return respuesta_error("Producto invalido", HTTPStatus.BAD_REQUEST)
+
+    productos.eliminar(id_producto)
+    return jsonify({"mensaje": "Producto eliminado"}), HTTPStatus.OK
+
+
+# --- ENDPOINTS ADMIN: GESTIÓN DE PREMIOS CANJEABLES ---
+@app.post("/admin/premios")
+def admin_crear_premio():
+    if not es_administrador():
+        return respuesta_no_autorizado()
+
+    if request.content_type and "multipart/form-data" in request.content_type:
+        codigo = str(request.form.get("codigo", "")).strip()
+        nombre = str(request.form.get("nombre_producto", "")).strip()
+        descripcion = str(request.form.get("descripcion", "")).strip()
+        puntos = int(request.form.get("puntos") or 0)
+        disponible = request.form.get("disponible", "true").lower() == "true"
+        foto = request.files.get("foto")
+    else:
+        datos = request.get_json(silent=True) or {}
+        codigo = str(datos.get("codigo", "")).strip()
+        nombre = str(datos.get("nombre_producto", "")).strip()
+        descripcion = str(datos.get("descripcion", "")).strip()
+        puntos = int(datos.get("puntos") or 0)
+        disponible = bool(datos.get("disponible", True))
+        foto = None
+
+    if not (codigo and nombre and puntos > 0):
+        return respuesta_error("Completa codigo, nombre y puntos mayores a 0", HTTPStatus.BAD_REQUEST)
+
+    creado = premios.crear(codigo, nombre, descripcion, puntos, disponible, foto)
+    return jsonify(premios.como_respuesta(creado, url_base_de_fotos())), HTTPStatus.CREATED
+
+
+@app.patch("/admin/premios/<id_premio>")
+def admin_actualizar_premio(id_premio):
+    if not es_administrador():
+        return respuesta_no_autorizado()
+    if not id_premio.isalnum():
+        return respuesta_error("Premio invalido", HTTPStatus.BAD_REQUEST)
+
+    datos = request.get_json(silent=True) or {}
+    campos = {}
+    if "disponible" in datos:
+        campos["disponible"] = bool(datos["disponible"])
+    if "puntos" in datos and int(datos["puntos"]) > 0:
+        campos["puntos"] = int(datos["puntos"])
+    if "nombre_producto" in datos and str(datos["nombre_producto"]).strip():
+        campos["nombre_producto"] = str(datos["nombre_producto"]).strip()
+    if "descripcion" in datos:
+        campos["descripcion"] = str(datos["descripcion"]).strip()
+
+    actualizado = premios.actualizar(id_premio, campos)
+    return jsonify(premios.como_respuesta(actualizado, url_base_de_fotos())), HTTPStatus.OK
+
+
+@app.delete("/admin/premios/<id_premio>")
+def admin_eliminar_premio(id_premio):
+    if not es_administrador():
+        return respuesta_no_autorizado()
+    if not id_premio.isalnum():
+        return respuesta_error("Premio invalido", HTTPStatus.BAD_REQUEST)
+
+    premios.eliminar(id_premio)
+    return jsonify({"mensaje": "Premio eliminado"}), HTTPStatus.OK
 
 
 # ENDPOINTS PARA 2DO RELEASE (INACTIVOS)
