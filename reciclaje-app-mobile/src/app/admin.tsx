@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   ScrollView,
   StyleSheet,
   Switch,
@@ -14,6 +15,7 @@ import {
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import * as ImagePicker from "expo-image-picker";
 import { borrarSesionAdmin, obtenerClaveAdminDeSesion } from "@/lib/sesion";
 import {
   actualizarProductoAdmin,
@@ -66,6 +68,7 @@ export default function PaginaAdmin() {
   const [descPremio, setDescPremio] = useState("");
   const [puntosPremio, setPuntosPremio] = useState("");
   const [disponiblePremio, setDisponiblePremio] = useState(true);
+  const [fotoPremioUri, setFotoPremioUri] = useState<string | null>(null);
 
   async function cargarTodo(clave: string) {
     try {
@@ -222,6 +225,44 @@ export default function PaginaAdmin() {
   }
 
   // --- Handlers Premios ---
+  async function handleSacarFotoPremio() {
+    const permiso = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permiso.granted) {
+      Alert.alert("Permiso requerido", "Habilitá el acceso a la cámara para sacar la foto.");
+      return;
+    }
+
+    const resultado = await ImagePicker.launchCameraAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+
+    if (!resultado.canceled && resultado.assets[0]) {
+      setFotoPremioUri(resultado.assets[0].uri);
+    }
+  }
+
+  async function handleElegirFotoPremio() {
+    const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permiso.granted) {
+      Alert.alert("Permiso requerido", "Habilitá el acceso a la galería para elegir una foto.");
+      return;
+    }
+
+    const resultado = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+
+    if (!resultado.canceled && resultado.assets[0]) {
+      setFotoPremioUri(resultado.assets[0].uri);
+    }
+  }
+
   async function handleCrearPremio() {
     if (!claveAdmin) return;
     const puntosNum = parseInt(puntosPremio || "0", 10);
@@ -238,6 +279,7 @@ export default function PaginaAdmin() {
         descripcion: descPremio.trim(),
         puntos: puntosNum,
         disponible: disponiblePremio,
+        fotoUri: fotoPremioUri,
       });
       Alert.alert("Premio creado", "Ya aparece en el catálogo de canje.");
       setCodigoPremio("");
@@ -245,6 +287,7 @@ export default function PaginaAdmin() {
       setDescPremio("");
       setPuntosPremio("");
       setDisponiblePremio(true);
+      setFotoPremioUri(null);
       await cargarTodo(claveAdmin);
     } catch (error) {
       Alert.alert("Error", error instanceof Error ? error.message : "No se pudo crear el premio");
@@ -595,6 +638,36 @@ export default function PaginaAdmin() {
                 placeholderTextColor="#7a8c7a"
               />
 
+              {/* --- BOTONES DE FOTO: SACAR EN EL MOMENTO O ELEGIR DE GALERÍA --- */}
+              <View style={styles.filaDosColumnas}>
+                <TouchableOpacity
+                  style={[styles.botonFoto, { flex: 1 }]}
+                  onPress={handleSacarFotoPremio}
+                >
+                  <Text style={styles.textoBotonFoto}>📷 Sacar foto</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.botonFoto, { flex: 1 }]}
+                  onPress={handleElegirFotoPremio}
+                >
+                  <Text style={styles.textoBotonFoto}>🖼️ Galería</Text>
+                </TouchableOpacity>
+              </View>
+
+              {fotoPremioUri && (
+                <View style={styles.contenedorPrevia}>
+                  <Image
+                    source={{ uri: fotoPremioUri }}
+                    style={styles.vistaPreviaFoto}
+                    resizeMode="contain"
+                  />
+                  <TouchableOpacity onPress={() => setFotoPremioUri(null)}>
+                    <Text style={styles.textoQuitarFoto}>✕ Quitar foto</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
               <View style={styles.filaSwitch}>
                 <Text style={styles.labelSwitch}>Disponible para canjear ahora</Text>
                 <Switch
@@ -735,6 +808,32 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   labelSwitch: { fontSize: 14, fontWeight: "600", color: "#1b2a1b" },
+  botonFoto: {
+    backgroundColor: "#e8f5e9",
+    borderWidth: 1,
+    borderColor: "#2e7d32",
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  textoBotonFoto: { color: "#2e7d32", fontWeight: "bold", fontSize: 13 },
+  contenedorPrevia: {
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  vistaPreviaFoto: {
+    width: "100%",
+    height: 120,
+    borderRadius: 8,
+    marginBottom: 6,
+    backgroundColor: "#f9fbf9",
+  },
+  textoQuitarFoto: {
+    color: "#b00020",
+    fontSize: 12,
+    fontWeight: "600",
+  },
   botonPrincipal: {
     backgroundColor: "#2e7d32",
     paddingVertical: 13,
