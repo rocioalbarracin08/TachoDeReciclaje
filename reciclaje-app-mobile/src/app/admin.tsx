@@ -68,6 +68,7 @@ export default function PaginaAdmin() {
 
   // --- Estados Premios Canjeables ---
   const [premiosKiosco, setPremiosKiosco] = useState<Premio[]>([]);
+  const [camaraCodigoPremioActiva, setCamaraCodigoPremioActiva] = useState(false);
   const [premioEditando, setPremioEditando] = useState<Premio | null>(null);
   const [codigoPremio, setCodigoPremio] = useState("");
   const [nombrePremio, setNombrePremio] = useState("");
@@ -236,6 +237,7 @@ export default function PaginaAdmin() {
   // --- Handlers Premios ---
   function limpiarFormPremio() {
     setPremioEditando(null);
+    setCamaraCodigoPremioActiva(false);
     setCodigoPremio("");
     setNombrePremio("");
     setDescPremio("");
@@ -248,6 +250,7 @@ export default function PaginaAdmin() {
 
   function seleccionarPremioParaEditar(premio: Premio) {
     setPremioEditando(premio);
+    setCamaraCodigoPremioActiva(false);
     setCodigoPremio(premio.codigo);
     setNombrePremio(premio.nombre);
     setDescPremio(premio.descripcion || "");
@@ -260,6 +263,7 @@ export default function PaginaAdmin() {
   }
 
   async function handleSacarFotoPremio() {
+    setCamaraCodigoPremioActiva(false);
     const permiso = await ImagePicker.requestCameraPermissionsAsync();
     if (!permiso.granted) {
       Alert.alert("Permiso requerido", "Habilitá el acceso a la cámara para sacar la foto.");
@@ -268,18 +272,17 @@ export default function PaginaAdmin() {
 
     const resultado = await ImagePicker.launchCameraAsync({
       mediaTypes: ["images"],
-      allowsEditing: true,
-      aspect: [1, 1],
       quality: 0.7,
     });
 
-    if (!resultado.canceled && resultado.assets[0]) {
+    if (!resultado.canceled && resultado.assets?.[0]?.uri) {
       setFotoPremioUri(resultado.assets[0].uri);
       setQuitarFotoActual(false);
     }
   }
 
   async function handleElegirFotoPremio() {
+    setCamaraCodigoPremioActiva(false);
     const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permiso.granted) {
       Alert.alert("Permiso requerido", "Habilitá el acceso a la galería para elegir una foto.");
@@ -288,12 +291,10 @@ export default function PaginaAdmin() {
 
     const resultado = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
-      allowsEditing: true,
-      aspect: [1, 1],
       quality: 0.7,
     });
 
-    if (!resultado.canceled && resultado.assets[0]) {
+    if (!resultado.canceled && resultado.assets?.[0]?.uri) {
       setFotoPremioUri(resultado.assets[0].uri);
       setQuitarFotoActual(false);
     }
@@ -406,6 +407,7 @@ export default function PaginaAdmin() {
                 setPestana(tab);
                 setCamaraQrActiva(false);
                 setCamaraBarrasActiva(false);
+                setCamaraCodigoPremioActiva(false);
               }}
             >
               <Text style={[styles.textoTab, pestana === tab && styles.textoTabActiva]}>
@@ -656,24 +658,54 @@ export default function PaginaAdmin() {
                 {premioEditando ? "Editar premio del kiosco" : "Nuevo premio del kiosco"}
               </Text>
 
-              <View style={styles.filaDosColumnas}>
+              {camaraCodigoPremioActiva && (
+                <View style={styles.camaraWrapper}>
+                  <CameraView
+                    style={styles.camara}
+                    facing="back"
+                    barcodeScannerSettings={{
+                      barcodeTypes: ["ean13", "ean8", "upc_a", "upc_e", "qr"],
+                    }}
+                    onBarcodeScanned={(res) => {
+                      if (res.data) {
+                        setCamaraCodigoPremioActiva(false);
+                        setCodigoPremio(res.data);
+                      }
+                    }}
+                  />
+                </View>
+              )}
+
+              <View style={styles.filaBusqueda}>
                 <TextInput
-                  style={[styles.input, { flex: 1 }]}
+                  style={styles.inputInline}
                   value={codigoPremio}
                   onChangeText={setCodigoPremio}
-                  placeholder="Cód (ej: ALF01)"
+                  placeholder="Cód o código de barras"
                   placeholderTextColor="#7a8c7a"
                   autoCapitalize="characters"
                 />
-                <TextInput
-                  style={[styles.input, { flex: 1 }]}
-                  value={puntosPremio}
-                  onChangeText={setPuntosPremio}
-                  keyboardType="numeric"
-                  placeholder="Costo (pts)"
-                  placeholderTextColor="#7a8c7a"
-                />
+                <TouchableOpacity
+                  style={styles.botonBuscar}
+                  onPress={async () => {
+                    if (camaraCodigoPremioActiva) return setCamaraCodigoPremioActiva(false);
+                    if (await verificarPermisoCamara()) setCamaraCodigoPremioActiva(true);
+                  }}
+                >
+                  <Text style={styles.textoBotonBuscar}>
+                    {camaraCodigoPremioActiva ? "Cerrar" : "📷 Leer"}
+                  </Text>
+                </TouchableOpacity>
               </View>
+
+              <TextInput
+                style={styles.input}
+                value={puntosPremio}
+                onChangeText={setPuntosPremio}
+                keyboardType="numeric"
+                placeholder="Costo (pts)"
+                placeholderTextColor="#7a8c7a"
+              />
 
               <TextInput
                 style={styles.input}
