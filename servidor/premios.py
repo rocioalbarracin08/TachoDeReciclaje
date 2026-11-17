@@ -1,5 +1,4 @@
 import requests
-
 import pocketbase
 
 URL_PREMIOS = f"{pocketbase.URL_POCKETBASE}/api/collections/premios/records"
@@ -31,6 +30,51 @@ def buscar_por_id(id_premio: str):
         return None
     respuesta.raise_for_status()
     return respuesta.json()
+
+
+def crear(codigo: str, nombre_producto: str, descripcion: str, puntos: int, disponible: bool, archivo_foto=None) -> dict:
+    datos = {
+        "codigo": codigo.strip(),
+        "nombre_producto": nombre_producto.strip(),
+        "descripcion": descripcion.strip(),
+        "puntos": str(puntos),
+        "disponible": "true" if disponible else "false",
+    }
+    archivos = None
+    if archivo_foto is not None:
+        archivos = {
+            "foto": (archivo_foto.filename or "premio.jpg", archivo_foto.stream, archivo_foto.mimetype or "image/jpeg")
+        }
+
+    respuesta = requests.post(
+        URL_PREMIOS,
+        data=datos,
+        files=archivos,
+        headers=pocketbase.encabezados_admin(),
+        timeout=15,
+    )
+    respuesta.raise_for_status()
+    return respuesta.json()
+
+
+def actualizar(id_premio: str, campos: dict) -> dict:
+    respuesta = requests.patch(
+        f"{URL_PREMIOS}/{id_premio}",
+        json=campos,
+        headers=pocketbase.encabezados_admin(),
+        timeout=pocketbase.TIEMPO_MAXIMO_SEG,
+    )
+    respuesta.raise_for_status()
+    return respuesta.json()
+
+
+def eliminar(id_premio: str):
+    respuesta = requests.delete(
+        f"{URL_PREMIOS}/{id_premio}",
+        headers=pocketbase.encabezados_admin(),
+        timeout=pocketbase.TIEMPO_MAXIMO_SEG,
+    )
+    respuesta.raise_for_status()
 
 
 def construir_url_foto(premio: dict, url_base_pocketbase: str) -> str:
